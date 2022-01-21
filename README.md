@@ -15,3 +15,9 @@ Caesar cypher (http://localhost:8000/caesar.html and look at console):
 ```
 $ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_caesarEncrypt', '_caesarDecrypt']" -Wl,--no-entry "caesar.cpp" -o "caesar.wasm"
 ```
+
+Reverse a string (http://localhost:8000/reverse.html and look at console):
+
+```
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_reverse']" -Wl,--no-entry "reverse.c" -o "reverse.wasm"
+```

@@ -1,42 +1,51 @@
+async function bytes(path) {
+	if (typeof fetch !== "undefined") {
+		const response = await fetch(path);
+		const file = await response.arrayBuffer();
+		return file;
+	}
+	const fs = require('fs');
+	return fs.readFileSync(path)
+}
+
 (async () => {
-	const response = await fetch('caesar.wasm');
-	const file = await response.arrayBuffer();
+	const file = await bytes('caesar.wasm');
 	const wasm = await WebAssembly.instantiate(file);
 
-const { memory, caesarEncrypt, caesarDecrypt } = wasm.instance.exports;
+	const { memory, caesarEncrypt, caesarDecrypt } = wasm.instance.exports;
 
-const plaintext = "helloworld";
-const myKey = 3;
+	const plaintext = "helloworld";
+	const myKey = 3;
 
-const encode = function stringToIntegerArray(string, array) {
-	const alphabet = "abcdefghijklmnopqrstuvwxyz";
-	for (let i = 0; i < string.length; i++) {
-		array[i] = alphabet.indexOf(string[i]);
-	}
-};
+	const encode = function stringToIntegerArray(string, array) {
+		const alphabet = "abcdefghijklmnopqrstuvwxyz";
+		for (let i = 0; i < string.length; i++) {
+			array[i] = alphabet.indexOf(string[i]);
+		}
+	};
 
-const decode = function integerArrayToString(array) {
-	const alphabet = "abcdefghijklmnopqrstuvwxyz";
-	let string = "";
-	for (let i = 0; i < array.length; i++) {
-		string += alphabet[array[i]];
-	}
-	return string;
-};
+	const decode = function integerArrayToString(array) {
+		const alphabet = "abcdefghijklmnopqrstuvwxyz";
+		let string = "";
+		for (let i = 0; i < array.length; i++) {
+			string += alphabet[array[i]];
+		}
+		return string;
+	};
 
-const myArray = new Int32Array(memory.buffer, 0, plaintext.length);
+	const myArray = new Int32Array(memory.buffer, 0, plaintext.length);
 
-encode(plaintext, myArray);
+	encode(plaintext, myArray);
 
-console.log(myArray); // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
-console.log(decode(myArray)); // helloworld
+	console.log(myArray); // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
+	console.log(decode(myArray)); // helloworld
 
-caesarEncrypt(myArray.byteOffset, myArray.length, myKey);
+	caesarEncrypt(myArray.byteOffset, myArray.length, myKey);
 
-console.log(myArray); // Int32Array(10) [10, 7, 14, 14, 17, 25, 17, 20, 14, 6]
-console.log(decode(myArray)); // khoorzruog
+	console.log(myArray); // Int32Array(10) [10, 7, 14, 14, 17, 25, 17, 20, 14, 6]
+	console.log(decode(myArray)); // khoorzruog
 
-caesarDecrypt(myArray.byteOffset, myArray.length, myKey);
-  console.log(myArray);         // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
-  console.log(decode(myArray)); // helloworld
+	caesarDecrypt(myArray.byteOffset, myArray.length, myKey);
+	console.log(myArray);         // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
+	console.log(decode(myArray)); // helloworld
 })();                           // don't forget to close that async function!
