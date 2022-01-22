@@ -6,7 +6,7 @@ void printit()
 {
 	for (int i = 0; i < 5; i++)
 	{
-		printf("%d\n", rand());
+		printf("%f\n", rand()/(float)RAND_MAX);
 	}
 }
 
