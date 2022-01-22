@@ -1,0 +1,15 @@
+<html>
+	<body>
+		<script src="randoms.js"></script>
+		<script>
+			let handler = function() {
+				if (!calledMain) {
+					window.setTimeout(handler, 500);
+				} else {
+					_printit();
+				}
+			}
+			handler();
+		</script>
+	</body>
+</html>
