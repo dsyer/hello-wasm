@@ -2,3 +2,5 @@ hello.html
 hello.js
 *.wasm
 randoms.js
+time.js
+wordle.js

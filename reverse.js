@@ -20,7 +20,7 @@ async function bytes(path) {
 	const buffer = new Uint8Array(memory.buffer, 0, plaintext.length);
 	buffer.set(encoder.encode(plaintext), 0);
 
-	reverse(buffer.byteOffset, buffer.length);
+	reverse(buffer, buffer.length);
 	console.log(buffer);
 	console.log(decoder.decode(buffer));
 })();

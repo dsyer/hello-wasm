@@ -1,0 +1,119 @@
+<html>
+
+<head>
+	<style>
+		.error {
+			color: red;
+		}
+		.guess {
+			margin: 12px;
+		}
+		.tile {
+			padding: 4px;
+			margin: 6px;
+			border: 0px;
+			justify-content: center;
+			align-items: center;
+			font-family: monospace;
+		}
+
+		.letter-0 {
+			background-color: white;
+		}
+
+		.letter-1 {
+			background-color: grey;
+		}
+
+		.letter-2 {
+			background-color: yellow;
+		}
+
+		.letter-4 {
+			background-color: greenyellow;
+		}
+	</style>
+	<script src="wordle.js"></script>
+</head>
+
+<body>
+
+	<div id="guesses"></div>
+	<div id="errors" class="error"></div>
+	<input id="guess" type="text" />
+	<button onclick="submit()">Enter</button>
+
+	<script>
+		const encoder = new TextEncoder();
+		const decoder = new TextDecoder();
+
+		let guess = function (value) {
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
+			buffer.set(encoder.encode(value), 0);
+			_guess(buffer, buffer.length);
+			var result = [];
+			for (i = 0; i < buffer.length; i++) {
+				result[i] = buffer[i];
+			}
+			return result;
+		}
+
+		let solution = function () {
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
+			_solution(buffer, buffer.length);
+			return decoder.decode(buffer);
+		}
+
+		let handler = function (value) {
+			if (!calledMain) {
+				window.setTimeout(handler(value), 500);
+			} else {
+				var result = guess(value);
+				var guesses = document.getElementById("guesses");
+				var node = document.createElement('div');
+				var score = 0;
+				node.classList.add("guess")
+				for (i = 0; i < result.length && i < value.length; i++) {
+					var span = document.createElement('span');
+					score = score + result[i];
+					span.classList.add("letter-" + result[i], "tile");
+					span.innerHTML = value.charAt(i);
+					node.appendChild(span);
+				}
+				guesses.appendChild(node);
+			}
+		}
+
+		let validate = function (value) {
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
+			buffer.set(encoder.encode(value), 0);
+			return _validate(buffer, buffer.length) > 0;
+		}
+
+		let submit = function () {
+			var guess = document.getElementById("guess");
+			var errors = document.getElementById("errors");
+			if (validate(guess.value)) {
+				handler(guess.value);
+				guess.value = "";
+				errors.innerHTML = "";
+			} else {
+				errors.innerHTML = "Not a word";
+			}
+			return false;
+		}
+
+		window.addEventListener("load", event => {
+			var guess = document.getElementById("guess");
+			guess.addEventListener("keypress", event => {
+				var key = event.which || event.keyCode || 0;
+				if (key === 13) {
+					submit();
+				}
+			});
+		});
+	</script>
+
+</body>
+
+</html>

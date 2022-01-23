@@ -1,6 +1,4 @@
-Following tutorial at [wasmbyexample.dev](https://wasmbyexample.dev/examples/hello-world/hello-world.c.en-us.html).
-
-Hello world using emscripten to generate HTML, Javascript and WASM (http://localhost:8000/hello.html and look at console):
+Following tutorial at [wasmbyexample.dev](https://wasmbyexample.dev/examples/hello-world/hello-world.c.en-us.html). Hello world using emscripten to generate HTML, Javascript and WASM (http://localhost:8000/hello.html and look at console):
 
 ```
 $ emcc hello.c -O3 -o hello.html
@@ -10,7 +8,7 @@ $ python -m http.server 8000
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
-Caesar cypher using emscripten to generate just WASM (http://localhost:8000/caesar.html and look at console):
+Also from that tutorial, there's a Caesar cypher using emscripten to generate just WASM (http://localhost:8000/caesar.html and look at console):
 
 ```
 $ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_caesarEncrypt', '_caesarDecrypt']" -Wl,--no-entry "caesar.cpp" -o "caesar.wasm"
@@ -45,3 +43,11 @@ undefined
 0.534809
 0.715307
 ```
+
+Wordle (http://localhost:8000/wordle.html):
+
+```
+$ emcc -Os -s EXPORTED_FUNCTIONS="['_guess','_solution','_main', '_validate']" wordle.c -o wordle.js
+```
+
+This one doesn't have the `-s STANDALONE_WASM` flag - with that the random seed is always 0, so the game works but it's always the same word.
