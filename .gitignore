@@ -1,6 +1,6 @@
 hello.html
 hello.js
 *.wasm
+!wordle.wasm
 randoms.js
 time.js
-wordle.js
