@@ -5,9 +5,11 @@
 		.error {
 			color: red;
 		}
+
 		.guess {
 			margin: 12px;
 		}
+
 		.tile {
 			padding: 4px;
 			margin: 6px;
@@ -66,23 +68,19 @@
 		}
 
 		let handler = function (value) {
-			if (!calledMain) {
-				window.setTimeout(handler(value), 500);
-			} else {
-				var result = guess(value);
-				var guesses = document.getElementById("guesses");
-				var node = document.createElement('div');
-				var score = 0;
-				node.classList.add("guess")
-				for (i = 0; i < result.length && i < value.length; i++) {
-					var span = document.createElement('span');
-					score = score + result[i];
-					span.classList.add("letter-" + result[i], "tile");
-					span.innerHTML = value.charAt(i);
-					node.appendChild(span);
-				}
-				guesses.appendChild(node);
+			var result = guess(value);
+			var guesses = document.getElementById("guesses");
+			var node = document.createElement('div');
+			var score = 0;
+			node.classList.add("guess")
+			for (i = 0; i < result.length && i < value.length; i++) {
+				var span = document.createElement('span');
+				score = score + result[i];
+				span.classList.add("letter-" + result[i], "tile");
+				span.innerHTML = value.charAt(i);
+				node.appendChild(span);
 			}
+			guesses.appendChild(node);
 		}
 
 		let validate = function (value) {
@@ -92,17 +90,21 @@
 		}
 
 		let submit = function () {
-			var guess = document.getElementById("guess");
-			var errors = document.getElementById("errors");
-			var value = guess.value.toLowerCase();
-			if (validate(value)) {
-				handler(value);
-				guess.value = "";
-				errors.innerHTML = "";
+			if (!calledMain) {
+				window.setTimeout(submit(), 500);
 			} else {
-				errors.innerHTML = "Not a word";
+				var guess = document.getElementById("guess");
+				var errors = document.getElementById("errors");
+				var value = guess.value.toLowerCase();
+				if (validate(value)) {
+					handler(value);
+					guess.value = "";
+					errors.innerHTML = "";
+				} else {
+					errors.innerHTML = "Not a word";
+				}
+				return false;
 			}
-			return false;
 		}
 
 		window.addEventListener("load", event => {
