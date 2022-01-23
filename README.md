@@ -44,7 +44,7 @@ undefined
 0.715307
 ```
 
-Wordle (http://localhost:8000/wordle.html):
+Wordle (http://localhost:8000):
 
 ```
 $ emcc -Os -s EXPORTED_FUNCTIONS="['_guess','_solution','_main', '_validate']" wordle.c -o wordle.js
