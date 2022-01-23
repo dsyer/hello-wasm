@@ -15,6 +15,7 @@
 			justify-content: center;
 			align-items: center;
 			font-family: monospace;
+			text-transform: uppercase;
 		}
 
 		.letter-0 {
@@ -93,8 +94,9 @@
 		let submit = function () {
 			var guess = document.getElementById("guess");
 			var errors = document.getElementById("errors");
-			if (validate(guess.value)) {
-				handler(guess.value);
+			var value = guess.value.toLowerCase();
+			if (validate(value)) {
+				handler(value);
 				guess.value = "";
 				errors.innerHTML = "";
 			} else {
