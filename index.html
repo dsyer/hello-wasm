@@ -88,7 +88,7 @@
 		let guess = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 			buffer.set(encoder.encode(value), 0);
-			_guess(buffer, buffer.length);
+			_guess(buffer, value.length);
 			var result = [];
 			for (i = 0; i < buffer.length; i++) {
 				if (i < value.length) {
@@ -100,7 +100,7 @@
 		}
 
 		let solution = function () {
-			const buffer = new Uint8Array(wasmMemory.buffer, 0, 6);
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
 			_solution(buffer, buffer.length);
 			result = decoder.decode(buffer);
 			for (i = 0; i < buffer.length; i++) {
@@ -163,7 +163,7 @@
 		let validate = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 			buffer.set(encoder.encode(value), 0);
-			result = _validate(buffer, buffer.length) > 0;
+			result = _validate(buffer, value.length) > 0;
 			for (i = 0; i < buffer.length; i++) {
 				buffer[i] = 0;
 			}
@@ -188,7 +188,7 @@
 			if (value) {
 				const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 				buffer.set(encoder.encode(value), 0);
-				_reset(buffer, buffer.length);
+				_reset(buffer, value.length);
 				for (i = 0; i < buffer.length; i++) {
 					buffer[i] = 0;
 				}
