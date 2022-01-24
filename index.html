@@ -169,21 +169,17 @@
 		}
 
 		let submit = function () {
-			if (!calledMain) {
-				window.setTimeout(submit(), 500);
+			var guess = document.getElementById("guess");
+			var errors = document.getElementById("errors");
+			var value = guess.value.toLowerCase();
+			if (validate(value)) {
+				handler(value);
+				guess.value = "";
+				errors.innerHTML = "";
 			} else {
-				var guess = document.getElementById("guess");
-				var errors = document.getElementById("errors");
-				var value = guess.value.toLowerCase();
-				if (validate(value)) {
-					handler(value);
-					guess.value = "";
-					errors.innerHTML = "";
-				} else {
-					errors.innerHTML = "Not a word";
-				}
-				return false;
+				errors.innerHTML = "Not a word";
 			}
+			return false;
 		}
 
 		let reset = function (value) {
@@ -211,16 +207,29 @@
 			document.getElementById("solution").innerHTML = "";
 		}
 
-		window.addEventListener("load", event => {
-			var guess = document.getElementById("guess");
-			guess.addEventListener("keypress", event => {
-				var key = event.which || event.keyCode || 0;
-				if (key === 13) {
-					submit();
+		let loaded = function(event) {
+			if (!calledMain) {
+				window.setTimeout(() => loaded(event), 500);
+			} else {
+				var guess = document.getElementById("guess");
+				guess.addEventListener("keypress", event => {
+					var key = event.which || event.keyCode || 0;
+					if (key === 13) {
+						submit();
+					}
+				});
+				var search = document.location.search;
+				if (search.startsWith("?")) {
+					if (search.length == 6) {
+						reset(search.substring(1));
+						return;
+					}
 				}
-			});
-			reset();
-		});
+				reset();
+			}
+		}
+
+		window.addEventListener("load", loaded);
 	</script>
 
 </body>
