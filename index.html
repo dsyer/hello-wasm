@@ -67,7 +67,7 @@
 	<script>
 		const encoder = new TextEncoder();
 		const decoder = new TextDecoder();
-		var alphabet = "abcdefghijklmnopqrstuvwxyz";
+		const alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 		let guess = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
