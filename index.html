@@ -86,19 +86,21 @@
 		const alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 		let guess = function (value) {
-			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 			buffer.set(encoder.encode(value), 0);
 			_guess(buffer, buffer.length);
 			var result = [];
 			for (i = 0; i < buffer.length; i++) {
-				result[i] = buffer[i];
+				if (i < value.length) {
+					result[i] = buffer[i];
+				}
 				buffer[i] = 0;
 			}
 			return result;
 		}
 
 		let solution = function () {
-			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, 6);
 			_solution(buffer, buffer.length);
 			result = decoder.decode(buffer);
 			for (i = 0; i < buffer.length; i++) {
@@ -159,7 +161,7 @@
 		}
 
 		let validate = function (value) {
-			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 			buffer.set(encoder.encode(value), 0);
 			result = _validate(buffer, buffer.length) > 0;
 			for (i = 0; i < buffer.length; i++) {
@@ -184,7 +186,7 @@
 
 		let reset = function (value) {
 			if (value) {
-				const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
+				const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
 				buffer.set(encoder.encode(value), 0);
 				_reset(buffer, buffer.length);
 				for (i = 0; i < buffer.length; i++) {
@@ -207,7 +209,7 @@
 			document.getElementById("solution").innerHTML = "";
 		}
 
-		let loaded = function(event) {
+		let loaded = function (event) {
 			if (!calledMain) {
 				window.setTimeout(() => loaded(event), 500);
 			} else {

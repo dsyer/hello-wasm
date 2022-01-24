@@ -17,7 +17,7 @@ async function bytes(path) {
 	const plaintext = "helloworld";
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
-	const buffer = new Uint8Array(memory.buffer, 0, plaintext.length);
+	const buffer = new Uint8Array(memory.buffer, 0, plaintext.length + 1);
 	buffer.set(encoder.encode(plaintext), 0);
 
 	reverse(buffer, buffer.length);
