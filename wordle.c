@@ -27,7 +27,8 @@ int compare(const void *s1, const void *s2)
 
 int validate(char *value, int length)
 {
-	if (length > 5) {
+	if (length > 5)
+	{
 		return 0;
 	}
 	return bsearch(value, words, WORD_COUNT, sizeof(char *), compare) != NULL;
@@ -39,7 +40,10 @@ void guess(char *guess, int length)
 	for (int i = 0; i < length; i++)
 	{
 		int index = guess[i] - 'a';
-		counts[index]++;
+		if (index >= 0 && index < 26)
+		{
+			counts[index]++;
+		}
 	}
 	for (int i = 0; i < length && i < 5; i++)
 	{

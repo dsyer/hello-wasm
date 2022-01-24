@@ -41,15 +41,16 @@
 
 <body>
 
-	<br/>
+	<br />
 
-	<div>Word guessing game with logic implemented in C and deployed as a WebAssembly (<a href="https://github.com/dsyer/hello-wasm">source code</a>).</div>
-	
-	<br/>
+	<div>Word guessing game with logic implemented in C and deployed as a WebAssembly (<a
+			href="https://github.com/dsyer/hello-wasm">source code</a>).</div>
+
+	<br />
 
 	<div>Type a 5-letter word and hit "Enter".</div>
 
-	<br/>
+	<br />
 
 	<div id="guesses"></div>
 	<div id="errors" class="error"></div>
@@ -60,7 +61,7 @@
 	<div>
 		<div id="letters" class="guess"></div>
 		<div id="solution"></div>
-		<button onclick="giveup()">Give Up</button>
+		<button onclick="cheat()">Cheat</button><button onclick="giveup()">Give Up</button>
 	</div>
 
 	<script>
@@ -90,7 +91,7 @@
 			return result;
 		}
 
-		let mark = function (value) {
+		let mark = function (value, update) {
 			var result = guess(value);
 			var node = document.createElement('div');
 			var score = 0;
@@ -102,30 +103,50 @@
 				span.innerHTML = value.charAt(i);
 				node.appendChild(span);
 			}
+			if (update) {
+				for (i = 0; i < result.length && i < value.length; i++) {
+					var letter = document.getElementById("letter-" + value.charAt(i));
+					if (letter) {
+						if (result[i] > 0) {
+							letter.classList = "letter-" + result[i] + " tile";
+						}
+					}
+				}
+			}
 			return node;
 		}
 
 		let handler = function (value) {
 			var guesses = document.getElementById("guesses");
-			guesses.appendChild(mark(value));
+			guesses.appendChild(mark(value, true));
 		}
 
 		let giveup = function () {
 			var guesses = document.getElementById("solution");
-			guesses.appendChild(mark(solution()));
+			if (guesses.childElementCount==0) {
+				guesses.appendChild(mark(solution()));
+			}
 		}
 
 		let cheat = function () {
-			var letters = document.getElementById("letters");
 			var guesses = document.getElementById("alphabet");
-			letters.replaceChild(mark(alphabet), guesses);
+			var result = guess(alphabet);
+			for (i = 0; i < 26; i++) {
+				var value = alphabet.charAt(i);
+				var letter = document.getElementById("letter-" + value);
+				if (letter && letter.className.startsWith("letter-0")) {
+					if (result[i] > 0) {
+						letter.classList = "letter-" + result[i] + " tile";
+					}
+				}
+			}
 		}
 
 		let validate = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
 			buffer.set(encoder.encode(value), 0);
 			result = _validate(buffer, buffer.length) > 0;
-			for (i=0; i<buffer.length; i++) {
+			for (i = 0; i < buffer.length; i++) {
 				buffer[i] = 0;
 			}
 			return result;
