@@ -34,6 +34,28 @@ int validate(char *value, int length)
 	return bsearch(value, words, WORD_COUNT, sizeof(char *), compare) != NULL;
 }
 
+void count() {
+	for (int i = 0; i < 5; i++)
+	{
+		int index = word[i] - 'a';
+		letters[index]++;
+	}
+}
+
+void reset(char *value, int length)
+{
+	if (length > 5)
+	{
+		return;
+	}
+	char **result = bsearch(value, words, WORD_COUNT, sizeof(char *), compare);
+	if (result != NULL)
+	{
+		word = *result;
+		count();
+	}
+}
+
 void guess(char *guess, int length)
 {
 	int counts[26] = {};
@@ -56,9 +78,9 @@ void guess(char *guess, int length)
 	{
 		if (guess[i] > 4)
 		{
+			int index = guess[i] - 'a';
 			for (int j = 0; j < 5; j++)
 			{
-				int index = guess[i] - 'a';
 				if (word[j] == guess[i] && j != i && counts[index] <= letters[index])
 				{
 					guess[i] = 2; // miss
@@ -78,10 +100,6 @@ int main()
 	srand((unsigned)t);
 	WORD_COUNT = sizeof(words) / sizeof(*words);
 	word = words[(int)(WORD_COUNT * (rand() / (float)RAND_MAX))];
-	for (int i = 0; i < 5; i++)
-	{
-		int index = word[i] - 'a';
-		letters[index]++;
-	}
+	count();
 	return 0;
 }

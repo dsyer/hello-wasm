@@ -43,8 +43,8 @@
 <body>
 
 	<header>
-		
-		<br/>
+
+		<br />
 
 		<div class="container">
 
@@ -186,15 +186,18 @@
 			}
 		}
 
-		window.addEventListener("load", event => {
-			var guess = document.getElementById("guess");
-			guess.addEventListener("keypress", event => {
-				var key = event.which || event.keyCode || 0;
-				if (key === 13) {
-					submit();
+		let reset = function (value) {
+			if (value) {
+				const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
+				buffer.set(encoder.encode(value), 0);
+				_reset(buffer, buffer.length);
+				for (i = 0; i < buffer.length; i++) {
+					buffer[i] = 0;
 				}
-			});
+			}
+			document.getElementById("guesses").innerHTML = "";
 			var letters = document.getElementById("letters");
+			letters.innerHTML = "";
 			var node = document.createElement('div');
 			node.id = "alphabet";
 			for (i = 0; i < alphabet.length; i++) {
@@ -205,6 +208,17 @@
 				node.appendChild(span);
 			}
 			letters.appendChild(node);
+		}
+
+		window.addEventListener("load", event => {
+			var guess = document.getElementById("guess");
+			guess.addEventListener("keypress", event => {
+				var key = event.which || event.keyCode || 0;
+				if (key === 13) {
+					submit();
+				}
+			});
+			reset();
 		});
 	</script>
 

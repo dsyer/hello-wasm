@@ -50,4 +50,8 @@ Wordle (http://localhost:8000):
 $ emcc -Os -s EXPORTED_FUNCTIONS="['_guess','_solution','_main', '_validate']" wordle.c -o wordle.js
 ```
 
-This one doesn't have the `-s STANDALONE_WASM` flag - with that the random seed is always 0, so the game works but it's always the same word.
+Some lessons learned:
+
+* The `-s STANDALONE_WASM` flag screws up the `time()` function - the return value and hence the random seed is always 0, so the game works but it's always the same word.
+* Byte arrays from `TextEncoder.encode()` are not null terminated, but some functions in C depend on that. The WASM memory is initialized with nulls, so those functions work as long as you don't write into the memory above the string.
+* You have to zero out the arrays that you pass to the WASM after using them, unless you don't care about leaking between calls, and possibly getting wrong results (null terminated strings).
