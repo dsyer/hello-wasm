@@ -53,12 +53,20 @@
 
 	<div id="guesses"></div>
 	<div id="errors" class="error"></div>
-	<input id="guess" type="text" />
-	<button onclick="submit()">Enter</button>
+	<div>
+		<input id="guess" type="text" />
+		<button onclick="submit()">Enter</button>
+	</div>
+	<div>
+		<div id="letters" class="guess"></div>
+		<div id="solution"></div>
+		<button onclick="giveup()">Give Up</button>
+	</div>
 
 	<script>
 		const encoder = new TextEncoder();
 		const decoder = new TextDecoder();
+		var alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 		let guess = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
@@ -67,6 +75,7 @@
 			var result = [];
 			for (i = 0; i < buffer.length; i++) {
 				result[i] = buffer[i];
+				buffer[i] = 0;
 			}
 			return result;
 		}
@@ -74,12 +83,15 @@
 		let solution = function () {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
 			_solution(buffer, buffer.length);
-			return decoder.decode(buffer);
+			result = decoder.decode(buffer);
+			for (i = 0; i < buffer.length; i++) {
+				buffer[i] = 0;
+			}
+			return result;
 		}
 
-		let handler = function (value) {
+		let mark = function (value) {
 			var result = guess(value);
-			var guesses = document.getElementById("guesses");
 			var node = document.createElement('div');
 			var score = 0;
 			node.classList.add("guess")
@@ -90,13 +102,33 @@
 				span.innerHTML = value.charAt(i);
 				node.appendChild(span);
 			}
-			guesses.appendChild(node);
+			return node;
+		}
+
+		let handler = function (value) {
+			var guesses = document.getElementById("guesses");
+			guesses.appendChild(mark(value));
+		}
+
+		let giveup = function () {
+			var guesses = document.getElementById("solution");
+			guesses.appendChild(mark(solution()));
+		}
+
+		let cheat = function () {
+			var letters = document.getElementById("letters");
+			var guesses = document.getElementById("alphabet");
+			letters.replaceChild(mark(alphabet), guesses);
 		}
 
 		let validate = function (value) {
-			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
+			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length);
 			buffer.set(encoder.encode(value), 0);
-			return _validate(buffer, buffer.length) > 0;
+			result = _validate(buffer, buffer.length) > 0;
+			for (i=0; i<buffer.length; i++) {
+				buffer[i] = 0;
+			}
+			return result;
 		}
 
 		let submit = function () {
@@ -125,6 +157,17 @@
 					submit();
 				}
 			});
+			var letters = document.getElementById("letters");
+			var node = document.createElement('div');
+			node.id = "alphabet";
+			for (i = 0; i < alphabet.length; i++) {
+				var span = document.createElement('span');
+				span.id = "letter-" + alphabet.charAt(i);
+				span.classList.add("letter-0", "tile");
+				span.innerHTML = alphabet.charAt(i);
+				node.appendChild(span);
+			}
+			letters.appendChild(node);
 		});
 	</script>
 
