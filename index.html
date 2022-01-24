@@ -1,6 +1,7 @@
 <html>
 
 <head>
+	<link rel="stylesheet" type="text/css" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
 	<style>
 		.error {
 			color: red;
@@ -41,28 +42,43 @@
 
 <body>
 
-	<br />
+	<header>
+		
+		<br/>
 
-	<div>Word guessing game with logic implemented in C and deployed as a WebAssembly (<a
-			href="https://github.com/dsyer/hello-wasm">source code</a>).</div>
+		<div class="container">
 
-	<br />
+			<div>Word guessing game with logic implemented in C and deployed as a WebAssembly (<a
+					href="https://github.com/dsyer/hello-wasm">source code</a>).</div>
 
-	<div>Type a 5-letter word and hit "Enter".</div>
+			<br />
 
-	<br />
+			<div>Type a 5-letter word and hit "Enter".</div>
 
-	<div id="guesses"></div>
-	<div id="errors" class="error"></div>
-	<div>
-		<input id="guess" type="text" />
-		<button onclick="submit()">Enter</button>
-	</div>
-	<div>
-		<div id="letters" class="guess"></div>
-		<div id="solution"></div>
-		<button onclick="cheat()">Cheat</button><button onclick="giveup()">Give Up</button>
-	</div>
+		</div>
+
+	</header>
+
+	<main>
+
+		<div class="container">
+
+			<div id="guesses"></div>
+			<div id="errors" class="error"></div>
+			<div>
+				<input id="guess" type="text" />
+				<button onclick="submit()" class="btn btn-primary">Enter</button>
+			</div>
+			<div>
+				<div id="letters" class="guess"></div>
+				<div id="solution"></div>
+				<button onclick="cheat()" class="btn btn-primary">Cheat</button> <button onclick="giveup()"
+					class="btn btn-primary">Give Up</button>
+			</div>
+
+		</div>
+
+	</main>
 
 	<script>
 		const encoder = new TextEncoder();
@@ -123,7 +139,7 @@
 
 		let giveup = function () {
 			var guesses = document.getElementById("solution");
-			if (guesses.childElementCount==0) {
+			if (guesses.childElementCount == 0) {
 				guesses.appendChild(mark(solution()));
 			}
 		}
