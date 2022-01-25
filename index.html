@@ -87,15 +87,11 @@
 
 		let guess = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
-			buffer.set(encoder.encode(value), 0);
+			buffer.set(encoder.encode(value));
 			_guess(buffer, value.length);
 			var result = [];
-			for (i = 0; i < buffer.length; i++) {
-				if (i < value.length) {
-					result[i] = buffer[i];
-				}
-				buffer[i] = 0;
-			}
+			buffer.slice(0, -1).map((u,i) => result[i] = u);
+			buffer.set(Array(buffer.length).fill(0));
 			return result;
 		}
 
@@ -103,9 +99,7 @@
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, 5);
 			_solution(buffer, buffer.length);
 			result = decoder.decode(buffer);
-			for (i = 0; i < buffer.length; i++) {
-				buffer[i] = 0;
-			}
+			buffer.set(Array(buffer.length).fill(0));
 			return result;
 		}
 
@@ -114,22 +108,22 @@
 			var node = document.createElement('div');
 			var score = 0;
 			node.classList.add("guess")
-			for (i = 0; i < result.length && i < value.length; i++) {
+			Array.from(value).map((u, i) => {
 				var span = document.createElement('span');
 				score = score + result[i];
 				span.classList.add("letter-" + result[i], "tile");
-				span.innerHTML = value.charAt(i);
+				span.innerHTML = u;
 				node.appendChild(span);
-			}
+			});
 			if (update) {
-				for (i = 0; i < result.length && i < value.length; i++) {
-					var letter = document.getElementById("letter-" + value.charAt(i));
+				Array.from(value).map((u, i) => {
+					var letter = document.getElementById("letter-" + u);
 					if (letter) {
 						if (result[i] > 0) {
 							letter.classList = "letter-" + result[i] + " tile";
 						}
 					}
-				}
+				});
 			}
 			return node;
 		}
@@ -149,24 +143,21 @@
 		let cheat = function () {
 			var guesses = document.getElementById("alphabet");
 			var result = guess(alphabet);
-			for (i = 0; i < 26; i++) {
-				var value = alphabet.charAt(i);
+			Array.from(alphabet).map((value,i) => {
 				var letter = document.getElementById("letter-" + value);
 				if (letter && letter.className.startsWith("letter-0")) {
 					if (result[i] > 0) {
 						letter.classList = "letter-" + result[i] + " tile";
 					}
 				}
-			}
+			});
 		}
 
 		let validate = function (value) {
 			const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
-			buffer.set(encoder.encode(value), 0);
+			buffer.set(encoder.encode(value));
 			result = _validate(buffer, value.length) > 0;
-			for (i = 0; i < buffer.length; i++) {
-				buffer[i] = 0;
-			}
+			buffer.set(Array(buffer.length).fill(0));
 			return result;
 		}
 
@@ -187,24 +178,22 @@
 		let reset = function (value) {
 			if (value) {
 				const buffer = new Uint8Array(wasmMemory.buffer, 0, value.length + 1);
-				buffer.set(encoder.encode(value), 0);
+				buffer.set(encoder.encode(value));
 				_reset(buffer, value.length);
-				for (i = 0; i < buffer.length; i++) {
-					buffer[i] = 0;
-				}
+				buffer.set(Array(buffer.length).fill(0));
 			}
 			document.getElementById("guesses").innerHTML = "";
 			var letters = document.getElementById("letters");
 			letters.innerHTML = "";
 			var node = document.createElement('div');
 			node.id = "alphabet";
-			for (i = 0; i < alphabet.length; i++) {
+			Array.from(alphabet).map((value,i) => {
 				var span = document.createElement('span');
 				span.id = "letter-" + alphabet.charAt(i);
 				span.classList.add("letter-0", "tile");
 				span.innerHTML = alphabet.charAt(i);
 				node.appendChild(span);
-			}
+			});
 			letters.appendChild(node);
 			document.getElementById("solution").innerHTML = "";
 		}
