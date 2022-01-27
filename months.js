@@ -1,31 +1,38 @@
+let MONTHS;
 let monthFromDate;
 
 let calledInit = false;
 
-let sleep = function(callback) {
-  // Simulate doing some async work
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(callback()), 1000)
-  })
+async function bytes(path) {
+  if (typeof fetch !== "undefined") {
+    const response = await fetch(path);
+    const file = await response.arrayBuffer();
+    return file;
+  }
+  const fs = await import('fs');
+  return fs.readFileSync(path)
 }
 
 let init = async function () {
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
   if (!calledInit) {
-    await sleep(() => console.log("Woke up."));
-  }
-  monthFromDate = function (date) {
-    if (!date) {
-      date = null;
+    calledInit = true;
+    MONTHS = new TextDecoder().decode(await bytes('months.txt'))
+      .split("\n")
+      .filter(word => word.length > 0);
+    console.log("Initialized months");
+    monthFromDate = function (date) {
+      if (!date) {
+        date = null;
+      }
+      if (!(date instanceof Date)) {
+        date = new Date(date);
+      }
+      return MONTHS[date.getMonth()];
     }
-    if (!(date instanceof Date)) {
-      date = new Date(date);
-    }
-    return MONTHS[date.getMonth()];
   }
   console.log(monthFromDate());
 }
 
 await init();
+export { MONTHS, monthFromDate };
 export default monthFromDate;
