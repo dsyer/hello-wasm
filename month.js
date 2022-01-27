@@ -1,4 +1,4 @@
-const months = await import('./months.js');
-const monthFromDate = (await months.default()).monthFromDate;
+import months from './months.js';
+const monthFromDate = await months();
 const dateString = process.argv[2] ?? null;
 console.log(monthFromDate(dateString));

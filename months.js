@@ -1,38 +1,23 @@
-var Module = (function () {
+let monthFromDate;
 
-  return (
-    function (Module) {
-      Module = Module || {};
-
-      var Module = typeof Module !== "undefined" ? Module : {};
-      var readyPromiseResolve, readyPromiseReject;
-      Module["ready"] = new Promise(function (resolve, reject) {
-        readyPromiseResolve = resolve;
-        readyPromiseReject = reject
-      });
-
-      let init = function() {
-        console.log(monthFromDate());
-        readyPromiseResolve(Module);
-      }
-
-      const MONTHS = ['January', 'February', 'March','April', 'May', 'June', 
-        'July', 'August', 'September', 'October', 'November', 'December'];
-      let monthFromDate = function (date) {
-        if (!date) {
-          date = null;
-        }
-        if (!(date instanceof Date)) {
-          date = new Date(date);
-        }
-        return MONTHS[date.getMonth()];
-      }
-      Module["monthFromDate"] = monthFromDate;
-      init();
-      return Module.ready
+let init = async function () {
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  monthFromDate = function (date) {
+    if (!date) {
+      date = null;
     }
-  );
+    if (!(date instanceof Date)) {
+      date = new Date(date);
+    }
+    return MONTHS[date.getMonth()];
+  }
+  console.log(monthFromDate());
+}
 
-})();
-
-export default Module;
+export default async function() {
+  if (!monthFromDate) {
+    await init();
+  }
+  return monthFromDate;
+};
