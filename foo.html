@@ -1,0 +1,23 @@
+<html>
+	<body>
+		<script type="importmap">
+			{
+				"imports": {
+					"foo": "./foo.js"
+				}
+			}
+		</script>
+		<script type="module">
+			import foo from 'foo';
+			var bar = await foo()
+			let handler = function() {
+				if (!bar.calledRun) {
+					window.setTimeout(handler, 500);
+				} else {
+					bar._printit();
+				}
+			}
+			handler();
+		</script>
+	</body>
+</html>
