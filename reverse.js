@@ -1,12 +1,10 @@
 async function bytes(path) {
 	if (typeof fetch !== "undefined") {
-		const response = await fetch(path);
-		const file = await response.arrayBuffer();
-		return file;
+		return await fetch(path).then(response => response.arrayBuffer());
 	}
-	const fs = require('fs');
-	return fs.readFileSync(path)
+	return await import('fs').then(fs => fs.readFileSync(path));
 }
+
 
 (async () => {
 	const file = await bytes('reverse.wasm');

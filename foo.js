@@ -1,24 +1,20 @@
 async function readString(path) {
   if (typeof fetch !== "undefined") {
-    const response = await fetch(path);
-    const file = await response.text();
-    return file;
+    return await fetch(path).then(response => response.text());
   }
-  const fs = await import('fs');
-  return fs.readFileSync(path, "utf8")
+  return await import('fs').then(() => fs.readFileSync(path, "utf8"))
 }
 
-let preinit = "";
 if (typeof fetch === 'undefined') {
   let dirname = (await import("path")).dirname;
   globalThis.__dirname = dirname(import.meta.url);
   let createRequire = (await import('module')).createRequire;
   globalThis.require = createRequire(import.meta.url);
-  preinit = "var Module = { locateFile: function(path) { return './' + path; }};\n";
+  globalThis.Module = { locateFile: function(path) { return './' + path; }};
 }
 
 var script = await readString('bar.js');
-(1, eval)(preinit + script);
+(1, eval)(script);
 
 while (!Module.calledRun) {
   await new Promise(resolve => {
