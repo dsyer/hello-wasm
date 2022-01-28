@@ -1,6 +1,9 @@
 hello.html
+bar.js
 hello.js
-*.wasm
-!wordle.wasm
 randoms.js
 time.js
+*.wasm
+!wordle.wasm
+!month*
+randoms.cjs

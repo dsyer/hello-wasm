@@ -1,25 +1,7 @@
-async function readString(path) {
-  if (typeof fetch !== "undefined") {
-    return await fetch(path).then(response => response.text());
-  }
-  return await import('fs').then(() => fs.readFileSync(path, "utf8"))
-}
-
 if (typeof fetch === 'undefined') {
-  let dirname = (await import("path")).dirname;
-  globalThis.__dirname = dirname(import.meta.url);
-  let createRequire = (await import('module')).createRequire;
-  globalThis.require = createRequire(import.meta.url);
-  globalThis.Module = { locateFile: function(path) { return './' + path; }};
+  await import('path').then(path => globalThis.__dirname = path.dirname(import.meta.url));
+  await import('module').then(module => globalThis.require = module.createRequire(import.meta.url));
 }
 
-var script = await readString('bar.js');
-(1, eval)(script);
-
-while (!Module.calledRun) {
-  await new Promise(resolve => {
-    setTimeout(resolve, 500);
-  });
-}
-
-export default Module;
+import { default as wasm } from './bar.js';
+export default await wasm({ locateFile: function (path) { return './' + path; } });
