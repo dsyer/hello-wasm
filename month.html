@@ -1,0 +1,16 @@
+<html>
+	<body>
+		<h2>Month</h2>
+		<script type="importmap">
+			{
+				"imports": {
+					"months": "./months.js"
+				}
+			}
+		</script>
+		<script type="module">
+			import monthFromDate from 'months';
+			console.log(monthFromDate("2022-02-23"));
+		</script>
+	</body>
+</html>

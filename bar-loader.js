@@ -8,6 +8,8 @@ async function readString(path) {
   return fs.readFileSync(path, "utf8")
 }
 
+console.log(new URL(import.meta.url).pathname)
+
 let preinit = "";
 if (typeof fetch === 'undefined') {
   let dirname = (await import("path")).dirname;
@@ -17,7 +19,7 @@ if (typeof fetch === 'undefined') {
   preinit = "var Module = { locateFile: function(path) { return './' + path; }};\n";
 }
 
-var script = await readString('bar.js');
+var script = await readString(new URL(import.meta.url).pathname.replace("-loader", ""));
 (1, eval)(preinit + script);
 
 async function wait(ms) {
