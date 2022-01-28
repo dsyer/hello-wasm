@@ -8,8 +8,6 @@ async function readString(path) {
   return fs.readFileSync(path, "utf8")
 }
 
-console.log(new URL(import.meta.url).pathname)
-
 let preinit = "";
 if (typeof fetch === 'undefined') {
   let dirname = (await import("path")).dirname;
@@ -22,16 +20,10 @@ if (typeof fetch === 'undefined') {
 var script = await readString(new URL(import.meta.url).pathname.replace("-loader", ""));
 (1, eval)(preinit + script);
 
-async function wait(ms) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
+while (!Module.calledRun) {
+  await new Promise(resolve => {
+    setTimeout(resolve, 500);
   });
 }
-let init = async function () {
-  while (!Module.calledRun) {
-    await wait(500);
-  }
-}
-await init();
 
 export default Module;

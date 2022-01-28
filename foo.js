@@ -20,16 +20,10 @@ if (typeof fetch === 'undefined') {
 var script = await readString('bar.js');
 (1, eval)(preinit + script);
 
-async function wait(ms) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
+while (!Module.calledRun) {
+  await new Promise(resolve => {
+    setTimeout(resolve, 500);
   });
 }
-let init = async function () {
-  while (!Module.calledRun) {
-    await wait(500);
-  }
-}
-await init();
 
 export default Module;
