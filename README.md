@@ -10,11 +10,180 @@ $ python -m http.server 8000
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
+=== Deconstructing the WASM
+
+If we look at the WASM binary in a browser it converts is to WATM, a text representation:
+
+```wasm
+(module
+  (func $a.a (;0;) (import "a" "a") (param i32 i32 i32 i32) (result i32))
+  (func $a.b (;1;) (import "a" "b") (param i32 i32 i32) (result i32))
+  (table $f (;0;) (export "f") 4 4 funcref)
+  (memory $c (;0;) (export "c") 256 256)
+  (global $global0 (mut i32) (i32.const 5245136))
+...
+  (data (i32.const 1024) "hello, world!\00\00\00\18\04")
+  (data (i32.const 1048) "\05")
+  (data (i32.const 1060) "\01")
+  (data (i32.const 1084) "\02\00\00\00\03\00\00\00\c8\04\00\00\00\04")
+  (data (i32.const 1108) "\01")
+  (data (i32.const 1123) "\0a\ff\ff\ff\ff")
+)
+```
+
+The "imports" at the top are 2 functions that need to be injected into the WASM so it can do its thing. One of them is `fd_write` and the other is `proc_exit` - those are the 2 system calls that `hello.c` makes in its `main()` function. They are obfuscated as "a" and "b" because that's what the JavaScript driver `hello.js` injects. If you scan through `hello.js` you will see, for instance, that it defines
+
+```javascript
+var asmLibraryArg={"b":_emscripten_memcpy_big,"a":_fd_write};
+```
+
+and
+
+```javascript
+function _fd_write(fd,iov,iovcnt,pnum){ ... }
+```
+
+which eventually delegates to `console.log` somehow.
+
+== Standalone WASM
+
 Also from that tutorial, there's a Caesar cypher using emscripten to generate just WASM:
 
 ```
-$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_caesarEncrypt', '_caesarDecrypt']" -Wl,--no-entry "caesar.cpp" -o "caesar.wasm"
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_caesarEncrypt', '_caesarDecrypt']" -Wl,--no-entry caesar.cpp -o caesar.wasm
 ```
+
+We used a `STANDALONE_WASM` compiler flag, and output just the WASM, with no Javascript or HTML wrappers. To interact with the WASM we will need a driver, in Javascript for instance:
+
+```javascript
+async function bytes(path) {
+	if (typeof fetch !== "undefined") {
+		return await fetch(path).then(response => response.arrayBuffer());
+	}
+	return await import('fs').then(fs => fs.readFileSync(path));
+}
+
+(async () => {
+	const wasm = await bytes('caesar.wasm').then(file => WebAssembly.instantiate(file));
+
+	const { memory, caesarEncrypt, caesarDecrypt } = wasm.instance.exports;
+
+	const plaintext = "helloworld";
+	const myKey = 3;
+
+	const encode = function stringToIntegerArray(string, array) {
+		const alphabet = "abcdefghijklmnopqrstuvwxyz";
+		for (let i = 0; i < string.length; i++) {
+			array[i] = alphabet.indexOf(string[i]);
+		}
+	};
+
+	const decode = function integerArrayToString(array) {
+		const alphabet = "abcdefghijklmnopqrstuvwxyz";
+		let string = "";
+		for (let i = 0; i < array.length; i++) {
+			string += alphabet[array[i]];
+		}
+		return string;
+	};
+
+	const myArray = new Int32Array(memory.buffer, 0, plaintext.length);
+
+	encode(plaintext, myArray);
+
+	console.log(myArray); // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
+	console.log(decode(myArray)); // helloworld
+
+	caesarEncrypt(myArray.byteOffset, myArray.length, myKey);
+
+	console.log(myArray); // Int32Array(10) [10, 7, 14, 14, 17, 25, 17, 20, 14, 6]
+	console.log(decode(myArray)); // khoorzruog
+
+	caesarDecrypt(myArray.byteOffset, myArray.length, myKey);
+	console.log(myArray);         // Int32Array(10) [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]
+	console.log(decode(myArray)); // helloworld
+})();
+```
+
+We can just put that in a `<script>` in the browser and it will interact with the WASM and print stuff to the console. Go to http://localhost:8000/caesar.html and look at console.
+
+== Random Numbers
+
+Random numbers come from the standard library in C, so that might be interesting:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+void printit()
+{
+	for (int i = 0; i < 5; i++)
+	{
+		printf("%f\n", rand()/(float)RAND_MAX);
+	}
+}
+
+int main() {
+	time_t t;
+	srand((unsigned) time(&t));
+	printf("%s\n", "Starting...");
+	return 0;
+}
+```
+
+Using emscripten to generate Javascript and WASM:
+
+```
+$ emcc -Os -s EXPORTED_FUNCTIONS="['_printit','_main']" -s EXPORT_ES6=1 randoms.c -o randoms.js
+```
+
+It also works in Node, but you'll need `type=module` in `package.json` in order to use the ES6 code (or copy it to `random.mjs`). The generated Javascript is kind of [buggy](https://github.com/emscripten-core/emscripten/issues/11792) so you have to set up some globals:
+
+```
+$ node
+Welcome to Node.js v16.13.1.
+Type ".help" for more information.
+> await import('path').then(path => globalThis.__dirname = path.dirname('./randoms.js'));
+> await import('module').then(module => globalThis.require = module.createRequire(new URL("file://" + process.cwd())));
+> var randoms = await import('./randoms.mjs').then(module => module.default({ locateFile: function (path) { return './' + path; } }));
+randoms._printit()
+0.830624
+0.165981
+0.218746
+0.534809
+0.715307
+```
+
+(If you see errors "Uncaught SyntaxError: await is only valid in async function" then you need to upgrade Node.js - it works with version 16 and better.)
+
+It's a bit simpler if you can just use CommonJS (compile without the ES6 flag):
+
+```
+$ emcc -Os -s EXPORTED_FUNCTIONS="['_printit','_main']" randoms.c -o randoms.cjs
+```
+
+and
+
+```
+$ node
+Welcome to Node.js v16.13.1.
+Type ".help" for more information.
+> var randoms = require('./randoms.cjs')
+undefined
+> Starting...
+
+> randoms._printit()
+0.830624
+0.165981
+0.218746
+0.534809
+0.715307
+```
+
+(You can also use `random.js` as the filename but then you have to `rm package.json` first to switch off ES6 in the REPL.)
+
+Boilerplate for importing ES6 modules is illustrated in `foo.js`, which imports `bar.js` (generated by emscripten). The same thing but without hard coding the target script name is in `bar-loader.js`.
 
 == String Transformation
 
@@ -58,19 +227,21 @@ async function bytes(path) {
 	const plaintext = "helloworld";
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
-	const buffer = new Uint8Array(memory.buffer, 0, plaintext.length + 1);
+	const buffer = new Uint8Array(memory.buffer, 0, plaintext.length);
 	buffer.set(encoder.encode(plaintext), 0);
 
 	reverse(buffer, buffer.length);
 	console.log(buffer);
 	console.log(decoder.decode(buffer));
+	buffer.set(Array(buffer.length).fill(0)); // null out input
 })();
 ```
 
 and run:
 
 ```
-$ nodeWelcome to Node.js v16.13.2.
+$ node
+Welcome to Node.js v16.13.2.
 Type ".help" for more information.
 > var reverse = require('./reverse.js')
 undefined
@@ -130,58 +301,114 @@ console.log(result);
 console.log(decoder.decode(result));
 ```
 
-If we put that code straight into `reverse.js` we might get a nasty surprise - the `reverse()` function and the `greet()` function can and will write on each other's buffer. So we need to null out the buffers after we finish with them:
+If we put that code straight into `reverse.js` we might get a nasty surprise - the `reverse()` function and the `greet()` function can and will write on each other's buffer. So we need to null out the buffers after we finish with them, e.g:
 
 ```javascript
 buffer.set(Array(buffer.length).fill(0));
 ```
 
-== Random Numbers
+== Global Data
 
-Random numbers using emscripten to generate Javascript and WASM (http://localhost:8000/randoms.html and look at console):
+A WASM has a (dynamic, growable) buffer of memory. We have seen it being used above in a couple of places. Sneakily we have been using address 0 of the buffer provided by the `WebAssembly.Memory` without asking if anyone else might be using it. It turned out OK because no-one was. Look again at the WATM for `hello.wasm` and you will see the `hello world` message being loaded in to global data. The `reverse.wasm` does the same thing with the `"Hello "` prefix that is used in the `greet` function:
 
-```
-$ emcc -Os -s EXPORTED_FUNCTIONS="['_printit','_main']" -s EXPORT_ES6=1 randoms.c -o randoms.js
-```
-
-Also works in Node. The generated Javascript is kind of [buggy](https://github.com/emscripten-core/emscripten/issues/11792) so you have to set up some globals:
-
-```
-$ node
-Welcome to Node.js v16.13.1.
-Type ".help" for more information.
-> await import('path').then(path => globalThis.__dirname = path.dirname('./randoms.js'));
-> await import('module').then(module => globalThis.require = module.createRequire(new URL("file://" + process.cwd())));
-> var randoms = await import('./randoms.js').then(module => module.default({ locateFile: function (path) { return './' + path; } }));
+```wasm
+(module
+  (table $__indirect_function_table (;0;) (export "__indirect_function_table") 1 1 funcref)
+  (memory $memory (;0;) (export "memory") 256 256)
+  (global $global0 (mut i32) (i32.const 5244416))
+...
+  (data (i32.const 1024) "Hello ")
+  (data (i32.const 1033) "\06P")
+)
 ```
 
-It's a bit simpler if you can just use CommonJS (compile without the ES6 flag):
+There is a magic number 1024 marking the start of global data and we can confirm this by inspecting it in Javascript. It's an offset from the start of the `WebAssembly.Memory` buffer:
 
-```
-$ emcc -Os -s EXPORTED_FUNCTIONS="['_printit','_main']" randoms.c -o randoms.cjs
-```
-
-and
-
-```
-$ node
-Welcome to Node.js v16.13.1.
-Type ".help" for more information.
-> var randoms = require('./randoms.cjs')
-undefined
-> Starting...
-
-> randoms._printit()
-0.830624
-0.165981
-0.218746
-0.534809
-0.715307
+```javascript
+> const wasm = await import('fs').then(fs => fs.readFileSync('reverse.wasm')).then(file => WebAssembly.instantiate(file))
+> const { memory, reverse, greet } = wasm.instance.exports;
+> new Uint8Array(memory.buffer, 1024, 6)
+Uint8Array(6) [ 72, 101, 108, 108, 111, 32 ]
 ```
 
-(You can also use `random.js` as the filename but then you have to `rm package.json` first to switch off ES6 in the REPL.)
+== Arrays of Data Structures
 
-Boilerplate for importing ES6 modules is illustrated in `foo.js`, which imports `bar.js` (generated by emscripten). The same thing but without hard coding the target script name is in `bar-loader.js`.
+What would an array of strings need to look like in Javascript so that a WASM would understand it? Let's set up a static array in C and export it via a function:
+
+```c
+char *words[] = {
+	"four",
+	"pink",
+	"rats"
+};
+
+char **list() {
+	return words;
+}
+```
+
+with that in `reverse.c` we can compile:
+
+```
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_reverse','_greet','_list']" -Wl,--no-entry "reverse.c" -o reverse.wasm
+```
+
+and call the function (after setting up the `wasm` as in the previous example):
+
+```javascript
+> wasm.instance.exports.list()
+1048
+```
+
+That's a pointer to a location in global memory, but not right at the start of it. We can inspect the memory and see what it points at:
+
+```javascript
+new Uint8Array(memory.buffer, 1048, 12)
+Uint8Array(12) [
+  5, 4, 0, 0, 10,
+  4, 0, 0, 0,  4,
+  0, 0
+]
+```
+
+That's a group of 3 specs for strings (arrays of char). There's one at offset 5 of length 4, one at offset 10 of length 4 and one at offset 0 or length 4. We can confirm that by looking at the memory in thos locations (the offsets are relative to the start of global data at 1024):
+
+```javascript
+> const decoder = new TextDecoder()
+> decoder.decode(new Uint8Array(memory.buffer, 1024+5, 4))
+'four'
+> decoder.decode(new Uint8Array(memory.buffer, 1024+10, 4))
+'pink'
+> decoder.decode(new Uint8Array(memory.buffer, 1024, 4))
+'rats'
+```
+
+We now know how to encode an array of strings to pass into the WASM as a function argument. For instance we could write this `find` function:
+
+```c
+int compare(const void *s1, const void *s2)
+{
+	const char *key = s1;
+	const char *const *arg = s2;
+	return strcmp(key, *arg);
+}
+
+char EMPTY[] = {};
+
+char *find(char *value, char **strings, int length) {
+	char **result = bsearch(value, strings, length, sizeof(char *), compare);
+	return result != NULL ? *result : EMPTY;
+}
+```
+
+and call it from Javascript to find the address of "rats" in the global `words` array (after recompiling the WASM to export this new function):
+
+```
+> var buffer = new Uint8Array(memory.buffer, 0, 5)
+> buffer.set(encoder.encode("rats"))
+> wasm.instance.exports.find(buffer, 1048, 3)
+1024
+```
 
 == Wordle
 

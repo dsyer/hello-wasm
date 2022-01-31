@@ -14,9 +14,32 @@ void reverse(char *plaintext, int length)
 char *greet(char *plaintext, int length)
 {
 	int size = length + 6;
-	char *result = calloc(sizeof(char), size+1);
-	result = "Hello ";
+	char *result = calloc(sizeof(char), size + 1);
+	strcpy(result, "Hello ");
 	strcat(result, plaintext);
-	result[size] = 0; // null terminate
 	return result;
+}
+
+int compare(const void *s1, const void *s2)
+{
+	const char *key = s1;
+	const char *const *arg = s2;
+	return strcmp(key, *arg);
+}
+
+char EMPTY[] = {};
+
+char *find(char *value, char **strings, int length) {
+	char **result = bsearch(value, strings, length, sizeof(char *), compare);
+	return result != NULL ? *result : EMPTY;
+}
+
+char *words[] = {
+	"four",
+	"pink",
+	"rats"
+};
+
+char **list() {
+	return words;
 }
