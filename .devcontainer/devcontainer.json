@@ -6,7 +6,7 @@
 		"dockerfile": "Dockerfile",
 		// Update 'VARIANT' to pick an Ubuntu version: hirsute, focal, bionic
 		// Use hirsute or bionic on local arm64/Apple Silicon.
-		"args": { "VARIANT": "focal" }
+		"args": { "VARIANT": "hirsute" }
 	},
 
 	// Set *default* container specific settings.json values on container create.
@@ -14,7 +14,7 @@
 
 
 	// Add the IDs of extensions you want installed when the container is created.
-	"extensions": ["ms-vscode.cpptools"],
+	"extensions": ["ms-vscode.cpptools-extension-pack"],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
@@ -25,7 +25,6 @@
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
-		"git": "latest",
-		"github-cli": "latest"
+		"git": "latest"
 	}
 }
