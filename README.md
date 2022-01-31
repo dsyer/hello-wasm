@@ -410,6 +410,100 @@ and call it from Javascript to find the address of "rats" in the global `words` 
 1024
 ```
 
+== More Data Structures
+
+Let's define a simple struct and export an array of them:
+
+```c
+#include <stdbool.h>
+
+struct word {
+	char* word;
+	bool common;
+};
+
+typedef struct word Word;
+
+Word words[] = {
+	{
+		"four",
+		true
+	},
+	{
+		"pink",
+		false
+	},
+	{
+		"rats",
+		true
+	}
+};
+
+Word* list() {
+	return words;
+}
+```
+
+Compile:
+
+```
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_list']" -Wl,--no-entry "words.c" -o words.wasm
+```
+
+and wrap in some Javascript:
+
+```javascript
+async function bytes(path) {
+	if (typeof fetch !== "undefined") {
+		return await fetch(path).then(response => response.arrayBuffer());
+	}
+	return await import('fs').then(fs => fs.readFileSync(path));
+}
+
+var exports = exports || {};
+
+(async function () {
+
+	const file = await bytes('words.wasm');
+	const wasm = await WebAssembly.instantiate(file);
+
+	const { memory, list } = wasm.instance.exports;
+
+	exports.wasm = wasm;
+	exports.memory = memory;
+	exports.list = list;
+
+})();
+```
+
+Then we can explore:
+
+```
+var words = require('./words.js')
+> words.list()
+1040
+> new Uint8Array(words.memory.buffer, 1040, 24)
+Uint8Array(24) [ 5, 4, 0, 0, 1, 0, 0, 0, 10, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 1, 0, 0, 0 ]
+```
+
+We can group those into arrays of length 8 which itself can be grouped into 2 sections representing the 2 fields in the struct `{word: [<offset>, <length>, 0, 0], common: [<bool>, 0, 0, 0]]` (the zeros are just padding). This makes it obvious how to decode the content:
+
+```javascript
+> let extract = function(ptr, index) {
+	const args=new Uint8Array(words.memory.buffer, ptr + index*8, 8);
+	return {
+		word: decoder.decode(new Uint8Array(words.memory.buffer, 1024+args[0], args[1])),
+		common: args[4] ? true : false
+	};
+}
+> extract(1040, 0)
+{ word: 'four', common: true }
+> extract(1040, 1)
+{ word: 'pink', common: false }
+> extract(1040, 2)
+{ word: 'rats', common: true }
+```
+
 == Wordle
 
 See http://localhost:8000 for demo:
@@ -422,7 +516,7 @@ Some lessons learned:
 
 * The `-s STANDALONE_WASM` flag screws up the `time()` function - the return value and hence the random seed is always 0, so the game works but it's always the same word.
 * Byte arrays from `TextEncoder.encode()` are not null terminated, but some functions in C depend on that, so you have to pass in a buffer with the extra null. The WASM memory is initialized with nulls, so those functions work as long as you don't write into the memory above the string.
-* You have to zero out the arrays that you pass to the WASM after using them, unless you don't care about leaking between calls, and possibly getting wrong results (null terminated strings).
+* You have to zero out the arrays that you pass to the WASM after using them, otherwise you can leak between calls, and get wrong results (null terminated strings again).
 * A buffer of length 1 is always an empty string, even if the first element is non-null in Javascript. That's why we always create buffers with size `value.length + 1` to pass a string `value` down into the WASM.
 
 == Protobufs
@@ -495,7 +589,9 @@ $ ./person
 54321 Juergen
 ```
 
-Building `protobuf` (https://github.com/protocolbuffers/protobuf). Check the `PROTOBUF_VERSION`:
+=== Building Protobuf
+
+Building `protobuf` for WASM (https://github.com/protocolbuffers/protobuf). Check the `PROTOBUF_VERSION`:
 
 ```
 $ grep PROTOBUF_VERSION /usr/include/google/protobuf/stubs/common.h 
@@ -517,6 +613,8 @@ $ find . -name \*.a
 
 Loads of warnings about `LLVM version appears incorrect (seeing "12.0", expected "11.0")` but it seems to work.
 
+=== Building Protobuf-c
+
 Building `protobuf-c` is trickier because it has to point back to the `protobuf` build, and also has to be a compatible version (hence the `3.12.4` tag in `protobuf`):
 
 ```
@@ -532,7 +630,7 @@ The Ubuntu system `emscripten` fails to compile the `person.c` ("Error: Cannot f
 $ emcc -Os -I tmp/protobuf-c -L tmp/protobuf-c/.libs:tmp/protobuf/src/.libs -s EXPORTED_FUNCTIONS="['_main']"  person.c -o person.js
 ```
 
-N.B. it *doesn't* work with the Node.js version that ships with `emsdk`, so you have to compile and run in different terminals. So the vanilla `person.js` is a CommonJS script (hence you have to remove the `type=module` from `package.json`):
+N.B. running in Node.js it *doesn't* work with the version that ships with `emsdk`, so you have to compile and run in different terminals. So the vanilla `person.js` is a CommonJS script (hence you have to remove the `type=module` from `package.json`):
 
 ```
 $ node
