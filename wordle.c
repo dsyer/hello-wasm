@@ -6,7 +6,7 @@
 
 int WORD_COUNT;
 
-char *word;
+char* word;
 
 int letters[26] = {};
 
@@ -21,8 +21,8 @@ void solution(char *value, int length)
 int compare(const void *s1, const void *s2)
 {
 	const char *key = s1;
-	const char *const *arg = s2;
-	return strcmp(key, *arg);
+	const Word *arg = s2;
+	return strcmp(key, arg->word);
 }
 
 int validate(char *value, int length)
@@ -31,7 +31,7 @@ int validate(char *value, int length)
 	{
 		return 0;
 	}
-	return bsearch(value, words, WORD_COUNT, sizeof(char *), compare) != NULL;
+	return bsearch(value, words, WORD_COUNT, sizeof(Word), compare) != NULL;
 }
 
 void count()
@@ -53,10 +53,10 @@ void reset(char *value, int length)
 	{
 		return;
 	}
-	char **result = bsearch(value, words, WORD_COUNT, sizeof(char *), compare);
+	Word *result = bsearch(value, words, WORD_COUNT, sizeof(Word), compare);
 	if (result != NULL)
 	{
-		word = *result;
+		word = result->word;
 		count();
 	}
 }
@@ -102,7 +102,12 @@ int main()
 	time_t t = time(NULL);
 	srand((unsigned)t);
 	WORD_COUNT = sizeof(words) / sizeof(*words);
-	word = words[(int)(WORD_COUNT * (rand() / (float)RAND_MAX))];
+	bool valid = false;
+	while (!valid) {
+		Word value = words[(int)(WORD_COUNT * (rand() / (float)RAND_MAX))];
+		word = value.word;
+		valid = value.common;
+	}
 	count();
 	return 0;
 }

@@ -578,6 +578,8 @@ Uint8Array(13) [
 ]
 ```
 
+Because it's by Google, the generated code also exports `proto.Person` into the global scope, so that works as a synonym for `pkg.Person`. There are command line options for `import_style=es6` as well, but it _doesn't_ generate an ES6 module, or indeed anything that works on its own the way the `commonjs` version did. Might go back to that one day, but it doesn't seem like anyone intended it to be useful.
+
 ### Protobufs in C
 
 Then we can generate some C code:
@@ -834,3 +836,42 @@ So we have located Juergen's data:
 'Juergen'
 ```
 
+## Protobuf Any
+
+Protobufs have an `Any` type that lets you sling bytes if you know what type that are. You have to import it explicitly:
+
+```javascript
+> var anypb = require('google-protobuf/google/protobuf/any_pb')
+> var any = new anypb.Any()
+```
+
+Then we can copy Josh over into the `Any`:
+
+```javascript
+> var josh = new proto.Person(['12345', 'Josh'])
+> var buffer = new Uint8Array(josh.serializeBinary().length)
+> buffer.set(josh.serializeBinary())
+> any.pack(buffer, 'proto.Person')
+```
+
+We can check that the values are as expected:
+
+```javascript
+> any.getValue_asU8()
+Uint8Array(13) [ 10, 5, 49, 50, 51, 52, 53, 18, 4, 74, 111, 115, 104 ]
+> any.toObject()
+{
+  typeUrl: 'type.googleapis.com/proto.Person',
+  value: 'CgUxMjM0NRIESm9zaA=='
+}
+```
+
+and we can deserialize it back to a `Person`:
+
+```javascript
+> var p = any.unpack(proto.Person.deserializeBinary, 'proto.Person')
+> p.toObject()
+{ id: '12345', name: 'Josh' }
+```
+
+The type name `proto.Person` is arbitrary - you can put any value in there you like, as long as it matches in the `pack` and `unpack`.
