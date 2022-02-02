@@ -15,8 +15,8 @@ int size(Person *person) {
 }
 
 void print(Person *person) {
-	printf("addr=%lu bsize=%d psize=%lu nsize=%lu id=%s (%lu) name=%s (%lu)\n", 
-		(long) person, size(person), sizeof(person), sizeof(*person), person->id, person->id, person->name, person->name);
+	printf("addr=%lu (packed=%d, pointer=%lu, unpacked=%lu) id@%u='%s' name@%u='%s'\n", 
+		(long) person, size(person), sizeof(person), sizeof(*person), (unsigned int)person->id, person->id, (unsigned int)person->name, person->name);
 }
 
 void pack(Person *person, uint8_t *out) {
