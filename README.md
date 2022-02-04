@@ -794,7 +794,24 @@ To copy a protobuffer from WASM memory into Javascript we need a two step proces
 
 ### Binary Representations
 
-Now it's time to get to grips with the layout of a `Person` in memory when it's not binary packed. Here's Juergen in the _unsigned_ view of the WASM memory:
+Now it's time to get to grips with the layout of a `Person` in memory.
+
+First the protobuf binary packing format which we can inspect with `_pack` (or `serializeBinary()` from the Javascript side):
+
+```javascript
+> person._pack(5247208, person.HEAPU8)
+undefined
+> person.HEAPU8.slice(0,16)
+Uint8Array(16) [
+   10,   5,  53,  52,  51,  50,
+   49,  18,   7,  74, 117, 101,
+  114, 103, 101, 110
+]
+```
+
+Juergen is 2 strings packed as 2 field groups concatenated together: `[10, 5, ...]` and `[18, 7, ...]`. The second number in the field group is the length of the string, and the remainder is the character data. The first number is an encoding of the field type and index: `(index<<3) + type`, where the type for string is 2 (same for all length-delimited data). See the [Protobuf docs](https://developers.google.com/protocol-buffers/docs/encoding) for more detail. Integers (and booleans and enums) are encoded as "varint", so they are a bit of a special case to decode - you can't just throw them into the mix as ints in C.
+
+Then we can look at what happens when the `Person` is not binary packed. Here's Juergen in the _unsigned_ view of the WASM memory:
 
 ```javascript
 > person.HEAPU8.slice(5247208, 5247208+20)
@@ -836,6 +853,24 @@ So we have located Juergen's data:
 'Juergen'
 ```
 
+The first 4 bytes in the binary data for Juergen are a pointer to the field descriptor (names, types, indexes, etc.). Here's what that slice looks like in the raw:
+
+```javascript
+> var start = 104 + 256*7;
+> person.HEAPU8.slice(start, start + 60)
+Uint8Array(60) [
+  249, 238, 170, 40,  58, 4, 0, 0, 58, 4, 0, 0,
+   58,   4,   0,  0, 222, 4, 0, 0, 20, 0, 0, 0,
+    2,   0,   0,  0, 176, 7, 0, 0, 16, 8, 0, 0,
+    1,   0,   0,  0,  32, 8, 0, 0,  3, 0, 0, 0,
+    0,   0,   0,  0,   0, 0, 0, 0,  0, 0, 0, 0
+]
+```
+
+There are 15 fields there, nicely grouped by Node.js into 5 rows of 3. The first is a magic number. The next three are all `[58, 4]` which is a pointer to the name of the message ("Person"). Then is the package name which in this case is empty (`4*256+222` is null). Then is the size (20) and the field count (2), followed by a pointer to the field descriptors (`7*256+176 = 1968`). You can read the rest in `protobuf-c.h` in the declaration of `ProtobufCMessageDescriptor`.
+
+Using all this data we could do reflection on a protobuf object in C, if all we had was the raw memory. In practice that is unlikely to be a useful insight because if we have the memory we also have the source code, and hence the proto file. We could even reverse engineer the proto file from the other sources if necessary. A more likely scenario is that we encounter a packed binary object and we don't know its proto type. That's what `proto.Any` is for.
+
 ## Protobuf Any
 
 Protobufs have an `Any` type that lets you sling bytes if you know what type that are. You have to import it explicitly:
@@ -875,3 +910,5 @@ and we can deserialize it back to a `Person`:
 ```
 
 The type name `proto.Person` is arbitrary - you can put any value in there you like, as long as it matches in the `pack` and `unpack`.
+
+Unfortunately, protobuf-c doesn't have support for `Any` typed data. The C++ library does, however.
