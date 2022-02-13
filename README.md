@@ -653,7 +653,7 @@ Building `protobuf` for WASM (https://github.com/protocolbuffers/protobuf) using
 $ mkdir tmp
 $ cd tmp
 $ git clone https://github.com/protocolbuffers/protobuf
-$ cd protofbuf
+$ cd protobuf
 ```
 
 Check the `PROTOBUF_VERSION` in the system:
