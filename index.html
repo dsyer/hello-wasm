@@ -2,6 +2,7 @@
 
 <head>
 	<link rel="stylesheet" type="text/css" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<style>
 		.error {
 			color: red;
@@ -193,6 +194,7 @@
 				span.classList.add("letter-0", "tile");
 				span.innerHTML = alphabet.charAt(i);
 				node.appendChild(span);
+				node.append(" ");
 			});
 			letters.appendChild(node);
 			document.getElementById("solution").innerHTML = "";
