@@ -912,3 +912,139 @@ and we can deserialize it back to a `Person`:
 The type name `proto.Person` is arbitrary - you can put any value in there you like, as long as it matches in the `pack` and `unpack`.
 
 Unfortunately, protobuf-c doesn't have support for `Any` typed data. The C++ library does, however.
+
+## Embedding WASM in Java
+
+With [GraalVM](https://www.graalvm.org/) you can [embed a WASM](https://www.graalvm.org/22.0/reference-manual/wasm/#embedding-webassembly-programs) into a Java program. The WASI builtins (C standard libraries) are supported. First install the WASM runtime, from a shell where GraalVM is the JDK:
+
+```
+$ gu install wasm
+```
+
+There is now a WASM runtime in the Polyglot support, and a `wasm` executable. If we take the `hello.c` from the first example above and recompile it to a standalone WASM:
+
+```
+$ emcc -Os -s STANDALONE_WASM hello.c -o hello.wasm
+```
+
+Then we can run it on the command line:
+
+```
+$ wasm hello.wasm
+hello, world!
+```
+
+Amazing. We can embed it in Java like this (look in the "driver" subdirectory in the source code for sample code):
+
+```java
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Source;
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.io.ByteSequence;
+
+class DemoApplication {
+
+public static void main(String[] args) throws Exception {
+		byte[] binary = Files.readAllBytes(Paths.get("hello.wasm"));
+		Context.Builder contextBuilder = Context.newBuilder("wasm");
+		Source.Builder sourceBuilder = Source.newBuilder("wasm", ByteSequence.create(binary), "example");
+		Source source = sourceBuilder.build();
+		Context context = contextBuilder.build();
+
+		context.eval(source);
+
+		Value mainFunction = context.getBindings("wasm").getMember("main").getMember("_start");
+		mainFunction.execute();
+	}
+
+}
+```
+
+When we run it, and we don't even need the GraalVM libraries on the classpath (they are packaged in the JVM), but we get a bit of a surprise:
+
+```
+$ java -cp target/classes/ -Dpolyglot.wasm.Builtins=wasi_snapshot_preview1 com.example.driver.DemoApplication
+hello, world!
+Exception in thread "main" Program exited with status code 0.
+        at <wasm> _start(Unknown)
+        at org.graalvm.sdk/org.graalvm.polyglot.Value.execute(Value.java:839)
+        at com.example.driver.DemoApplication.main(DemoApplication.java:22)
+```
+
+That's because we are running a `main` entry point which has a call to `proc_exit()`. We can re-arrange the WASM to just print and not exit:
+
+```c
+#include <stdio.h>
+void hello() {
+  printf("hello, world!\n");
+}
+```
+
+Recompile:
+
+```
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_hello']" -Wl,--no-entry hello.c -o hello.wasm
+```
+
+and switch to `jshell` for experimentation:
+
+```java
+$ jshell -R -Dpolyglot.wasm.Builtins=wasi_snapshot_preview1
+|  Welcome to JShell -- Version 17.0.2
+|  For an introduction type: /help intro
+
+jshell> import org.graalvm.polyglot.*; import org.graalvm.polyglot.io.*
+jshell> byte[] binary = Files.readAllBytes(Paths.get("hello.wasm"))
+jshell> Context.Builder contextBuilder = Context.newBuilder("wasm");
+   ...> Source.Builder sourceBuilder = Source.newBuilder("wasm", ByteSequence.create(binary), "example");
+   ...> Source source = sourceBuilder.build();
+   ...> Context context = contextBuilder.build();
+   ...> context.eval(source);
+jshell> context.getBindings("wasm").getMember("main").getMember("hello").execute()
+hello, world!
+$10 ==> wasm-void-result
+```
+
+So now we know how to call a void function in a WASM from Java. What about pushing data in and out? We can add a function that returns a string:
+
+```c
+char* msg() {
+  return "hello, world!\n";
+}
+```
+
+and make sure it is included in the WASM export (`-s EXPORTED_FUNCTIONS="['_hello','_msg']"`), then look at the result:
+
+```java
+jshell> context.getBindings("wasm").getMember("main").getMember("msg").execute()
+$17 ==> 1038
+```
+
+So we get back a pointer to the string. There's also a binding to the WASM memory and we can pull the data out from there:
+
+```java
+jshell> context.getBindings("wasm").getMember("main").getMember("memory").readBufferByte(1038)
+$20 ==> 104 // 'h'
+jshell> StringBuilder msg = new StringBuilder()
+jshell> int i=1038
+jshell> while (memory.readBufferByte(i)!=0) { msg.append((char)memory.readBufferByte(i)); i++; }
+jshell> msg
+msg ==> hello, world!
+```
+
+It's a bit more hassle than the JavaScript version because we have to copy all the data over byte by byte, instead of having slice operations on the buffer. But we can work with it, by creating some utility methods, for example:
+
+```java
+jshell> Function<Integer, String> extract = i -> {
+	StringBuilder s = new StringBuilder(); 
+	while (memory.readBufferByte(i)!=0) { 
+		s.append((char)memory.readBufferByte(i)); i++;
+	};
+	return s.toString();
+}
+jshell> extract.apply(1038)
+$50 ==> "hello, world!\n"
+```
