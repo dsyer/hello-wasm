@@ -998,11 +998,11 @@ $ jshell -R -Dpolyglot.wasm.Builtins=wasi_snapshot_preview1
 
 jshell> import org.graalvm.polyglot.*; import org.graalvm.polyglot.io.*
 jshell> byte[] binary = Files.readAllBytes(Paths.get("hello.wasm"))
-jshell> Context.Builder contextBuilder = Context.newBuilder("wasm");
-   ...> Source.Builder sourceBuilder = Source.newBuilder("wasm", ByteSequence.create(binary), "example");
-   ...> Source source = sourceBuilder.build();
-   ...> Context context = contextBuilder.build();
-   ...> context.eval(source);
+    Context.Builder contextBuilder = Context.newBuilder("wasm");
+    Source.Builder sourceBuilder = Source.newBuilder("wasm", ByteSequence.create(binary), "example");
+    Source source = sourceBuilder.build();
+    Context context = contextBuilder.build();
+    context.eval(source);
 jshell> context.getBindings("wasm").getMember("main").getMember("hello").execute()
 hello, world!
 $10 ==> wasm-void-result
@@ -1023,19 +1023,7 @@ jshell> context.getBindings("wasm").getMember("main").getMember("msg").execute()
 $17 ==> 1038
 ```
 
-So we get back a pointer to the string. There's also a binding to the WASM memory and we can pull the data out from there:
-
-```java
-jshell> context.getBindings("wasm").getMember("main").getMember("memory").readBufferByte(1038)
-$20 ==> 104 // 'h'
-jshell> StringBuilder msg = new StringBuilder()
-jshell> int i=1038
-jshell> while (memory.readBufferByte(i)!=0) { msg.append((char)memory.readBufferByte(i)); i++; }
-jshell> msg
-msg ==> hello, world!
-```
-
-It's a bit more hassle than the JavaScript version because we have to copy all the data over byte by byte, instead of having slice operations on the buffer. But we can work with it, by creating some utility methods, for example:
+So we get back a pointer to the string. There's also a binding to the WASM memory and we can pull the data out from there. It's a bit more hassle than the JavaScript version because we have to copy all the data over byte by byte, instead of having slice operations on the buffer. But we can work with it, by creating some utility methods, for example:
 
 ```java
 jshell> Function<Integer, String> extract = i -> {
@@ -1048,3 +1036,5 @@ jshell> Function<Integer, String> extract = i -> {
 jshell> extract.apply(1038)
 $50 ==> "hello, world!\n"
 ```
+
+The GraalVM WASI builtins do not have the same bugs as the emscripten JavaScript ones, so for instance we can use `-s STANDALONE_WASM` and `srand((unsigned) time(NULL))` to seed a sequence of pseudo random numbers.
