@@ -692,7 +692,13 @@ Building `protobuf-c` is trickier because it has to point back to the `protobuf`
 
 ```
 $ ./autogen.sh
-$ EMMAKEN_CFLAGS=-I../protobuf/src EM_PKG_CONFIG_PATH=../protobuf emconfigure ./configure --host=none-none-none --enable-wasm
+$ EMMAKEN_CFLAGS=-I../protobuf/src EM_PKG_CONFIG_PATH=../protobuf emconfigure ./configure --host=none-none-none
+$ EMMAKEN_CFLAGS='-I../protobuf/src -L../protobuf/src/.libs' emmake make
+```
+
+The `make` command above most likely will fail a couple of times, while it tries to run tests. You can't ignore it, but you can work around it. The first time it fails because `protoc-gen-c` is not executable (it's a WASM), but you can copy the system executable with the same name into the same location (and set the executable bit) to move past that by running the same make command again. The second failure is another non-executable WASM used in tests in `t/generated-code2/cxx-generate-packed-data`. You can get a binary executable to swap with that by running `./autogen.sh && ./configure && make` in a fresh clone. Copy the generated executable on top of the WASM and set the executable bit, then make again:
+
+```
 $ EMMAKEN_CFLAGS='-I../protobuf/src -L../protobuf/src/.libs' emmake make
 $ find . -name \*.a
 ./protobuf-c/.libs/libprotobuf-c.a
@@ -974,7 +980,7 @@ Exception in thread "main" Program exited with status code 0.
         at com.example.driver.DemoApplication.main(DemoApplication.java:22)
 ```
 
-That's because we are running a `main` entry point which has a call to `proc_exit()`. We can re-arrange the WASM to just print and not exit:
+That's because we are running a `main` entry point which has a call to `proc_exit()` (although older versions of `emcc` do not behave this way - probably they fixed a bug). We can re-arrange the WASM to just print and not exit:
 
 ```c
 #include <stdio.h>
