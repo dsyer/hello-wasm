@@ -29,7 +29,7 @@ var exports = exports || {};
 	var buffer = new Uint8Array(memory.buffer, 0, plaintext.length);
 	buffer.set(encoder.encode(plaintext), 0);
 
-	reverse(buffer, buffer.length);
+	reverse(0, buffer.length);
 	console.log(buffer);
 	console.log(decoder.decode(buffer));
 	buffer.set(Array(buffer.length).fill(0));
@@ -37,7 +37,7 @@ var exports = exports || {};
 	const name = "World";
 	buffer = new Uint8Array(memory.buffer, 0, name.length + 1);
 	buffer.set(encoder.encode(name), 0);
-	var ptr = greet(buffer);
+	var ptr = greet(0);
 	buffer.set(Array(name.length).fill(0));
 	const result = new Uint8Array(memory.buffer, ptr, strlen(memory.buffer, ptr));
 	console.log(result);
@@ -49,7 +49,7 @@ var exports = exports || {};
 	exports.reverse = function (plaintext) {
 		var buffer = new Uint8Array(memory.buffer, 0, plaintext.length);
 		buffer.set(encoder.encode(plaintext), 0);
-		reverse(buffer, buffer.length);
+		reverse(0, buffer.length);
 		var result = decoder.decode(buffer);
 		buffer.set(Array(buffer.length).fill(0)); // null out the input
 		return result;
@@ -57,7 +57,7 @@ var exports = exports || {};
 	exports.greet = function (name) {
 		const buffer = new Uint8Array(memory.buffer, 0, name.length + 1);
 		buffer.set(encoder.encode(name), 0);
-		const ptr = greet(buffer);
+		const ptr = greet(0);
 		buffer.set(Array(name.length).fill(0)); // null out the input
 		const result = new Uint8Array(memory.buffer, ptr, strlen(memory.buffer, ptr));
 		const value = decoder.decode(result);

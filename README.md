@@ -919,6 +919,87 @@ The type name `proto.Person` is arbitrary - you can put any value in there you l
 
 Unfortunately, protobuf-c doesn't have support for `Any` typed data. The C++ library does, however.
 
+## Using the WASM Stack
+
+A WASM generated with `-s STANDALONE_WASM` exports functions for stack manipulations:
+
+```javascript
+> var wasm = await import('fs').then(fs => fs.readFileSync('reverse.wasm')).then(file => WebAssembly.instantiate(file))
+> wasm.instance.exports
+[Object: null prototype] {
+  memory: Memory [WebAssembly.Memory] {},
+  reverse: [Function: 0],
+  greet: [Function: 1],
+  find: [Function: 3],
+  list: [Function: 4],
+  __indirect_function_table: Table [WebAssembly.Table] {},
+  __errno_location: [Function: 5],
+  stackSave: [Function: 7],
+  stackRestore: [Function: 8],
+  stackAlloc: [Function: 9]
+}
+```
+
+Notice the 3 functions at the bottom. The first one `stackSave()` just tells you the address of the top of the stack:
+
+```javascript
+> wasm.instance.exports.stackSave()
+5244448
+```
+
+then you can allocate space with `stackAlloc()`:
+
+```javascript
+> wasm.instance.exports.stackAlloc(10)
+5244432
+> wasm.instance.exports.stackSave()
+5244432
+```
+
+The top of the stack is now at 5244432, which is 16 bytes lower than it started. Why 16? Well, you allocated 10 bytes and the WASM rounded that down to the nearest 4-bit boundary. The calculation it did was:
+
+```javascript
+> (5244448-10)&(-16)
+5244432
+```
+
+which we can validate by looking at the WASM source code in the browser:
+
+```wasm
+(func $stackAlloc (;9;) (export "stackAlloc") (param $var0 i32) (result i32)
+    global.get $global0
+    local.get $var0
+    i32.sub
+    i32.const -16
+    i32.and
+    local.tee $var0
+    global.set $global0
+    local.get $var0
+  )
+```
+
+`-16` is `fffffff0` in hex, so we just subtract the space requested and round down to the nearest half a byte. The `stackRestore()` function just resets the top of the stack to the value you pass in (there's no state management inside the WASM).
+
+So to use the stack properly we should save the current value, allocate what you need, use it, zero it out, and then call `stackRestore()` with the saved value to return the memory.
+
+```javascript
+> var wasm = await import('fs').then(fs => fs.readFileSync('reverse.wasm')).then(file => WebAssembly.instantiate(file))
+> var { memory, stackAlloc, stackSave, stackRestore, reverse, greet} = wasm.instance.exports
+> const encoder = new TextEncoder();
+> const decoder = new TextDecoder();
+> var top = stackSave()
+> var ptr = stackAlloc(11)
+> var buffer = new Uint8Array(memory.buffer, ptr, 10)
+> buffer.set(encoder.encode("helloworld"))
+> reverse(ptr, buffer.length)
+> decoder.decode(buffer)
+'dlrowolleh'
+> buffer.set(Array(buffer.length).fill(0));
+> stackRestore(top)
+```
+
+If you generate the WASM without `-s STANDALONE_WASM` then the stack manipulation functions are not exported (or even present as far as I can see). It's unclear how you would manage memory except as we have done so far, by just using the buffer and keeping track of which parts of it are in use.
+
 ## Embedding WASM in Java
 
 With [GraalVM](https://www.graalvm.org/) you can [embed a WASM](https://www.graalvm.org/22.0/reference-manual/wasm/#embedding-webassembly-programs) into a Java program. The WASI builtins (C standard libraries) are supported. First install the WASM runtime, from a shell where GraalVM is the JDK:
@@ -1032,6 +1113,7 @@ $17 ==> 1038
 So we get back a pointer to the string. There's also a binding to the WASM memory and we can pull the data out from there. It's a bit more hassle than the JavaScript version because we have to copy all the data over byte by byte, instead of having slice operations on the buffer. But we can work with it, by creating some utility methods, for example:
 
 ```java
+jshell> var memory = context.getBindings("wasm").getMember("main").getMember("memory")
 jshell> Function<Integer, String> extract = i -> {
 	StringBuilder s = new StringBuilder(); 
 	while (memory.readBufferByte(i)!=0) { 
@@ -1044,3 +1126,167 @@ $50 ==> "hello, world!\n"
 ```
 
 The GraalVM WASI builtins do not have the same bugs as the emscripten JavaScript ones, so for instance we can use `-s STANDALONE_WASM` and `srand((unsigned) time(NULL))` to seed a sequence of pseudo random numbers.
+
+Our `reverse.wasm` was created as a standalone, so that will work if we can load the memory up for it.
+
+```java
+// load context with reverse.wasm, then...
+jshell> var memory = context.getBindings("wasm").getMember("main").getMember("memory")
+jshell> var reverse = context.getBindings("wasm").getMember("main").getMember("reverse")
+jshell> int i=0; Arrays.asList("helloworld".split("")).forEach(c -> {memory.writeBufferByte(i,(byte)c.charAt(0)); i++;})
+jshell> extract.apply(0)
+$28 ==> "helloworld"
+
+jshell> reverse.execute(0, 10)
+$29 ==> wasm-void-result
+
+jshell> extract.apply(0)
+$30 ==> "dlrowolleh"
+```
+
+## Embedding in Python
+
+There is a [`wasmtime`](https://github.com/bytecodealliance/wasmtime-py) library that you can `pip install` and use to load and run a WASM (or WAT). Example:
+
+```python
+from wasmtime import *
+engine = Engine()
+store = Store(engine)
+module = Module.from_file(engine, "./reverse.wasm")
+instance = Instance(store, module, [])
+exports = instance.exports(store)
+memory = exports["memory"]
+```
+
+If you run the code above in a REPL you can poke at the memory:
+
+```python
+>>> memory.data_ptr(store)[1024:1048]
+[114, 97, 116, 115, 0, 102, 111, 117, 114, 0, 112, 105, 110, 107, 0, 72, 101, 108, 108, 111, 32, 0, 0, 0]
+```
+
+That's `["rats", "four", "pink"]` and "Hello", as we can see from the WASM binary:
+
+```wat
+module(
+	...
+	(data (i32.const 1024) "rats\00four\00pink\00Hello ")
+	...
+)
+```
+
+The next block is the array of four pink rats:
+
+```python
+>>> memory.data_ptr(store)[1048:1060]
+[5, 4, 0, 0, 10, 4, 0, 0, 0, 4, 0, 0]
+```
+
+giving us the addresses of the string constants as `4*256 + [5, 10, 0]` or `[1029, 1034, 1024]`.
+
+Just like in Javascript, we can call functions in the WASM by passing it pointers to its own memory:
+
+```python
+>>> data = memory.data_ptr(store)
+>>> for i,v in enumerate("helloworld".encode('utf-8')): data[i] = v
+...
+```
+
+or
+
+```python
+>>> import ctypes
+>>> data = (c_ubyte*memory.data_len(store)).from_address(addressof(memory.data_ptr(store).contents))
+>>> data[0:10] = "helloworld".encode()
+>>> data[0:10]
+[104, 101, 108, 108, 111, 119, 111, 114, 108, 100]
+>>> exports["reverse"](store, 0, 10)
+>>> data[0:10]
+[100, 108, 114, 111, 119, 111, 108, 108, 101, 104]
+```
+
+> NOTE: you can't assign to a slice of the memory buffer, which seems like a bug (or at least a missing feature) in `wasmtime-py`, hence the use of `enumerate()` above.
+
+### WASI in Python
+
+We can set up WASI preview imports using a utility:
+
+```python
+from wasmtime import *
+engine = Engine()
+store = Store(engine)
+module = Module.from_file(engine, "./hello.wasm")
+linker = Linker(engine)
+linker.define_wasi()
+wasi = WasiConfig()
+wasi.inherit_stdout()
+store.set_wasi(wasi)
+instance = linker.instantiate(store, module)
+exports = instance.exports(store)
+```
+
+The version of `hello.wasm` above that calls `proc_exit()` generates a similar error to the Java app:
+
+
+```python
+>>> exports["_start"](store)
+hello, world!
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/usr/local/lib/python3.9/dist-packages/wasmtime/_func.py", line 100, in __call__
+    raise WasmtimeError._from_ptr(error)
+  File "/usr/lib/python3.9/contextlib.py", line 124, in __exit__
+    next(self.gen)
+  File "/usr/local/lib/python3.9/dist-packages/wasmtime/_func.py", line 263, in enter_wasm
+    raise trap_obj
+wasmtime._trap.ExitTrap: Exited with i32 exit status 0
+wasm backtrace:
+    0:  0x723 - <unknown>!<wasm function 10>
+```
+
+but it works. And the version of `hello.wasm` that doesn't have the main entry point works without errors:
+
+```python
+>>> exports["hello"](store)
+hello, world!
+```
+
+### Inspecting the Exports
+
+It's a bit like the exports in Javascript, including the stack manipulation functions:
+
+```python
+>>> exports.__dict__['_extern_map'].keys()
+dict_keys(['memory', 'hello', 'msg', '__indirect_function_table', 'fflush', '__errno_location', 'stackSave', 'stackRestore', 'stackAlloc'])
+```
+
+### Random Numbers
+
+If we compile `randoms.wasm` with `-s STANDALONE_WASM`:
+
+```python
+>>> from wasmtime import *
+engine = Engine()
+store = Store(engine)
+module = Module.from_file(engine, "./randoms.wasm")
+linker = Linker(engine)
+linker.define_wasi()
+wasi = WasiConfig()
+wasi.inherit_stdout()
+store.set_wasi(wasi)
+instance = linker.instantiate(store, module)
+exports = instance.exports(store)
+>>> exports.__dict__['_extern_map'].keys()
+dict_keys(['memory', 'printit', 'main', '__indirect_function_table', '_start'])
+>>> exports["_start"](store)
+Starting...
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+... # proc_exit() being called
+>>> exports["printit"](store)
+0.764245
+0.252648
+0.996302
+0.709899
+0.938538
+```
