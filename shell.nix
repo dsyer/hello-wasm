@@ -1,8 +1,26 @@
 with import <nixpkgs> { };
-mkShell {
+
+let
+  pythonPackages = python3Packages;
+in mkShell {
+
   name = "env";
-  buildInputs = [ figlet emscripten python3 nodejs cmake check protobuf protobufc pkg-config ];
-  shellHook = ''
+  buildInputs = [
+    pythonPackages.python
+    pythonPackages.venvShellHook
+    figlet emscripten nodejs cmake check protobuf protobufc pkg-config
+  ];
+
+  venvDir = "./.venv";
+  postVenvCreation = ''
+    unset SOURCE_DATE_EPOCH
+    pip install wasmtime
+  '';
+
+  postShellHook = ''
+    # allow pip to install wheels
+    unset SOURCE_DATE_EPOCH
     figlet ":wasm:"
   '';
+
 }
