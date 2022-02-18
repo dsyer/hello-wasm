@@ -1,13 +1,11 @@
 with import <nixpkgs> { };
 
-let
-  pythonPackages = python3Packages;
-in mkShell {
+mkShell {
 
   name = "env";
   buildInputs = [
-    pythonPackages.python
-    pythonPackages.venvShellHook
+    python3Packages.python
+    python3Packages.venvShellHook
     figlet emscripten nodejs cmake check protobuf protobufc pkg-config
   ];
 
