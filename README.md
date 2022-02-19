@@ -1000,7 +1000,7 @@ So to use the stack properly we should save the current value, allocate what you
 
 If you generate the WASM without `-s STANDALONE_WASM` then the stack manipulation functions are not exported (or even present as far as I can see). It's unclear how you would manage memory except as we have done so far, by just using the buffer and keeping track of which parts of it are in use.
 
-## Embedding WASM in Java
+## Embedding in Java with GraalVM
 
 With [GraalVM](https://www.graalvm.org/) you can [embed a WASM](https://www.graalvm.org/22.0/reference-manual/wasm/#embedding-webassembly-programs) into a Java program. The WASI builtins (C standard libraries) are supported. First install the WASM runtime, from a shell where GraalVM is the JDK:
 
@@ -1142,6 +1142,78 @@ $29 ==> wasm-void-result
 
 jshell> extract.apply(0)
 $30 ==> "dlrowolleh"
+```
+
+## Embedding in Java with Wasmtime-Java
+
+Wasmtime doesn't have first class support for Java but there are some third party integrations with the binary libraries. [Kawamuray](https://github.com/kawamuray/wasmtime-java) is the easiest to use. (Use Java 11.0.14 or better to avoid some weird issues with the terminal freezing in Jshell when you copy-paste into it.)
+
+```
+$ jshell --class-path $HOME/.m2/repository/io/github/kawamuray/wasmtime/wasmtime-java/0.7.0/wasmtime-java-0.7.0.jar:$HOME/.m2/repository/ch/qos/logback/logback-classic/1.2.10/logback-classic-1.2.10.jar:$HOME/.m2/repository/org/slf4j/slf4j-api/1.7.33/slf4j-api-1.7.33.jar:$HOME/.m2/repository/ch/qos/logback/logback-core/1.2.10/logback-core-1.2.10.jar
+|  Welcome to JShell -- Version 17.0.1
+|  For an introduction type: /help intro
+```
+
+then
+
+```java
+jshell> import io.github.kawamuray.wasmtime.wasi.*; import io.github.kawamuray.wasmtime.*;
+jshell> WasiCtx wasi = new WasiCtxBuilder().inheritStdio().inheritStderr().inheritStdin().build();
+     var store = Store.withoutData(wasi);
+     Engine engine = store.engine();
+     Linker linker = new Linker(store.engine());
+     WasiCtx.addToLinker(linker);
+     var module = io.github.kawamuray.wasmtime.Module.fromFile(engine, "./hello.wasm");
+     linker.module(store, "", module);
+jshell> var func = linker.get(store, "", "_start").get().func()
+jshell> func.call(store)
+```
+
+There's no output on stdout, just a `TrapException` when `proc_exit()` is called. Not sure what that means because it works if you run the app from the `java` command line (or use `mvn spring-boot:run`). If you use the version of `hello.wasm` without the main function:
+
+```java
+jshell> linker.get(store, "", "hello").get().func().call(store)
+$43 ==> Val[0] {  }
+
+jshell> linker.get(store, "", "msg").get().func().call(store)
+$44 ==> Val[1] { Val(type=I32, value=1024) }
+```
+
+So the `msg()` call returns a pointer to WASM memory, which is good. You can extract the pointer using the `Val`:
+
+```java
+jshell> linker.get(store, "", "msg").get().func().call(store)[0].i32()
+$45 ==> 1024
+```
+
+Interacting with the memory:
+
+```java
+jshell> var instance = new Instance(store, module, new ArrayList<>())
+jshell> var memory = instance.getMemory(store, "memory").get()
+jshell> var buffer = memory.buffer(store)
+jshell> buffer.position(1024)
+jshell> byte[] bytes = new byte[4];
+jshell> buffer.get(bytes)
+jshell> bytes
+bytes ==> byte[4] { 114, 97, 116, 115 }
+
+jshell> new String(bytes)
+$37 ==> "rats"
+```
+
+and calling functions:
+
+```java
+jshell> buffer.position(0)
+jshell> buffer.put("helloworld".getBytes())
+jshell> bytes = new byte[10]; buffer.get(bytes)
+jshell> bytes
+bytes ==> byte[10] { 104, 101, 108, 108, 111, 119, 111, 114, 108, 100 }
+jshell> instance.getFunc(store, "reverse").get().call(store, Val.fromI32(0), Val.fromI32(10))
+jshell> buffer.position(0)
+jshell> bytes
+bytes ==> byte[10] { 100, 108, 114, 111, 119, 111, 108, 108, 101, 104 }
 ```
 
 ## Embedding in Python
@@ -1289,4 +1361,17 @@ Traceback (most recent call last):
 0.996302
 0.709899
 0.938538
+```
+
+You can catch and ignore the exception if you want to:
+
+```python
+>>> try:
+  exports["_start"](store)
+except ExitTrap as err:
+  print(err)
+Starting...
+Exited with i32 exit status 0
+wasm backtrace:
+    0: 0x178e - <unknown>!<wasm function 22>
 ```
