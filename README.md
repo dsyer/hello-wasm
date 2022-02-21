@@ -1005,10 +1005,10 @@ If you generate the WASM without `-s STANDALONE_WASM` then the stack manipulatio
 If we leave the `print()` function undefined in `person.c`:
 
 ```c
-void print(Person *person);
+void printy(Person *person);
 
 int main() {
-	print(juergen());
+	printy(juergen());
 	return 0;
 }
 ```
@@ -1017,17 +1017,37 @@ and compile with `-s ERROR_ON_UNDEFINED_SYMBOLS=0` then the undefined function s
 
 ```wat
 (module
-  (func $env.print (;0;) (import "env" "print") (param i32))
+  (func $env.print (;0;) (import "env" "printy") (param i32))
   ...
   (func $main (;9;) (export "main") (param $var0 i32) (param $var1 i32) (result i32)
     call $juergen
-    call $env.print
+    call $env.printy
     i32.const 0
   )
 )
 ```
 
-and we have to inject an implementation into the module when we instantiate it. (TODO: finish this.)
+and we have to inject an implementation into the module when we instantiate it. One way to do that is to provide `emscripten` with a [library callback](https://emscripten.org/docs/porting/connecting_cpp_and_javascript/Interacting-with-code.html#implement-a-c-api-in-javascript), e.g. in `person.lib.js`:
+
+```javascript
+mergeInto(LibraryManager.library, {
+    printy: function (...args) {
+        console.log("Args: " + args);
+    }
+});
+```
+
+and compile with a flag that points to it:
+
+```
+$ emcc -Os -I tmp/protobuf-c --js-library person.lib.js -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_main','_juergen','_size','_person__pack','_pack','_unpack']" tmp/protobuf-c/protobuf-c/.libs/libprotobuf-c.a tmp/protobuf/src/.libs/libprotobuf.a person.c person.pb-c.c -o person.js
+$ node
+Welcome to Node.js v16.13.2.
+Type ".help" for more information.
+> var person = require('./person.js')
+undefined
+> Args: 5246456
+```
 
 ## Embedding in Java with GraalVM
 
