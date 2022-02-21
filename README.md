@@ -1000,6 +1000,35 @@ So to use the stack properly we should save the current value, allocate what you
 
 If you generate the WASM without `-s STANDALONE_WASM` then the stack manipulation functions are not exported (or even present as far as I can see). It's unclear how you would manage memory except as we have done so far, by just using the buffer and keeping track of which parts of it are in use.
 
+## Importing a Function
+
+If we leave the `print()` function undefined in `person.c`:
+
+```c
+void print(Person *person);
+
+int main() {
+	print(juergen());
+	return 0;
+}
+```
+
+and compile with `-s ERROR_ON_UNDEFINED_SYMBOLS=0` then the undefined function shows up as an import in the WASM:
+
+```wat
+(module
+  (func $env.print (;0;) (import "env" "print") (param i32))
+  ...
+  (func $main (;9;) (export "main") (param $var0 i32) (param $var1 i32) (result i32)
+    call $juergen
+    call $env.print
+    i32.const 0
+  )
+)
+```
+
+and we have to inject an implementation into the module when we instantiate it. (TODO: finish this.)
+
 ## Embedding in Java with GraalVM
 
 With [GraalVM](https://www.graalvm.org/) you can [embed a WASM](https://www.graalvm.org/22.0/reference-manual/wasm/#embedding-webassembly-programs) into a Java program. The WASI builtins (C standard libraries) are supported. First install the WASM runtime, from a shell where GraalVM is the JDK:
@@ -1215,6 +1244,85 @@ jshell> buffer.position(0)
 jshell> bytes
 bytes ==> byte[10] { 100, 108, 114, 111, 119, 111, 108, 108, 101, 104 }
 ```
+
+To use the memory without creating an `Instance` (which requires the imports to be defined), you need to make sure there is no `_start` function in the WASM. So compile with `-Wl,--no-entry`:
+
+```
+emcc -Os -I tmp/protobuf-c -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_juergen','_size','_person__pack','_print','_pack','_unpack']" -Wl,--no-entry tmp/protobuf-c/protobuf-c/.libs/libprotobuf-c.a tmp/protobuf/src/.libs/libprotobuf.a person.c person.pb-c.c -o wasmtime/person.wasm
+```
+
+And then we can access the memory in Java from the `Linker`:
+
+```java
+jshell> var memory = linker.get(store, "", "memory").get().memory();
+```
+
+### Protobufs
+
+We can add `person.proto` to `src/main/proto` and some stuff to the build:
+
+```xml
+<dependencies>
+	<dependency>
+		...
+		<groupId>com.google.protobuf</groupId>
+		<artifactId>protobuf-java</artifactId>
+		<version>3.18.0</version>
+	</dependency>
+</dependencies>
+
+<build>
+	<plugins>
+		...
+		<plugin>
+			<groupId>org.xolstice.maven.plugins</groupId>
+			<artifactId>protobuf-maven-plugin</artifactId>
+			<version>0.6.1</version>
+			<executions>
+				<execution>
+					<goals>
+						<goal>compile</goal>
+					</goals>
+				</execution>
+			</executions>
+		</plugin>
+	</plugins>
+</build>
+```
+
+And then we can sling `Person` messages in and out of the WASM. We need to know the packed length of the `Person`, which the WASM will tell us using the `size()` convenience function we already defined.
+
+```java
+jshell> int ptr = (int) linker.get(store, "", "juergen").get().func().call(store)[0].getValue();
+jshell> linker.get(store, "", "pack").get().func().call(store, Val.fromI32(ptr), Val.fromI32(0))
+jshell> int size = (int) linker.get(store, "", "size").get().func().call(store, Val.fromI32(ptr))[0].getValue()
+jshell> byte[] bytes = new byte[size];
+jshell> buffer.position(0)
+jshell> buffer.get(bytes)
+jshell> bytes
+bytes ==> byte[16] { 10, 5, 53, 52, 51, 50, 49, 18, 7, 74, 117, 101, 114, 103, 101, 110 }
+```
+
+and the generated `Person` can decode those bytes:
+
+```java
+jshell> Person.parseFrom(bytes)
+$49 ==> id: "54321"
+name: "Juergen"
+```
+
+Going the other way:
+
+```java
+jshell> var josh = Person.newBuilder().setName("Josh").setId("12345").build()
+jshell> bytes = josh.toByteArray()
+jshell> buffer.position(0)
+jshell> buffer.put(bytes)
+jshell> linker.get(store, "", "unpack").get().func().call(store, Val.fromI32(0), Val.fromI32(bytes.length))[0].getValue()
+$59 ==> 5247784
+```
+
+The result at the end there is a pointer to a `Person` which we could pass to a WASM function that accepted a `*Person`.
 
 ## Embedding in Python
 
