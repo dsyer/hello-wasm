@@ -879,7 +879,7 @@ Using all this data we could do reflection on a protobuf object in C, if all we 
 
 ## Protobuf Any
 
-Protobufs have an `Any` type that lets you sling bytes if you know what type that are. You have to import it explicitly:
+Protobufs have an `Any` type that lets you sling bytes if you know what type they are. You have to import it explicitly:
 
 ```javascript
 > var anypb = require('google-protobuf/google/protobuf/any_pb')
