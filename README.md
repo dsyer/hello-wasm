@@ -115,7 +115,7 @@ We can just put that in a `<script>` in the browser and it will interact and pri
 
 Random numbers come from the standard library in C, so that might be interesting:
 
-```c
+```c++
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -193,7 +193,7 @@ Boilerplate for importing ES6 modules is illustrated in `foo.js`, which imports 
 
 Reverse a string using emscripten to generate just WASM:
 
-```c
+```c++
 void reverse(char *plaintext, int length)
 {
 	for (int i = 0; i < length / 2; i++)
@@ -263,7 +263,7 @@ Also works in the browser at http://localhost:8000/reverse.html and look at cons
 
 If you know how the memory is laid out in C you can pass data back from the WASM to Javascript through the WASM memory. Strings should be easy, so let's try this in `reverse.c`:
 
-```c
+```c++
 char *greet(char *plaintext, int length)
 {
 	char *result = malloc(sizeof(char)*(length + 6));
@@ -354,7 +354,7 @@ The location of the global data in the binary is not mandated by the spec, as fa
 
 What would an array of strings need to look like in Javascript so that a WASM would understand it? Let's set up a static array in C and export it via a function:
 
-```c
+```c++
 char *words[] = {
 	"four",
 	"pink",
@@ -404,7 +404,7 @@ That's a group of 3 specs for strings (arrays of char). There's one at offset 5 
 
 We now know how to encode an array of strings to pass into the WASM as a function argument. For instance we could write this `find` function:
 
-```c
+```c++
 int compare(const void *s1, const void *s2)
 {
 	const char *key = s1;
@@ -433,7 +433,7 @@ and call it from Javascript to find the address of "rats" in the global `words` 
 
 Let's define a simple struct and export an array of them:
 
-```c
+```c++
 #include <stdbool.h>
 
 struct word {
@@ -592,7 +592,7 @@ which gives us `person.pb-c.c` and `person.pb-c.h`.
 
 Then let's create a simple `person.c`:
 
-```c
+```c++
 #include <stdio.h>
 #include <stdlib.h>
 #include "person.pb-c.h"
@@ -714,7 +714,7 @@ $ emcc -Os -I /usr/include/google -s EXPORTED_FUNCTIONS="['_main','_juergen','_s
 
 This generates a new Javascript module `person.js`. There are some utility functions in `person.c`:
 
-```c
+```c++
 void pack(Person *person, uint8_t *out) {
 	person__pack(person, out);
 }
@@ -831,7 +831,7 @@ Uint8Array(20) [
 
 The last two 4-byte groups there are pointers to Juergen's id and name respectively. We know this because of the way the `Person` struct was defined in the generated code:
 
-```c
+```c++
 struct  _Person
 {
   ProtobufCMessage base;
@@ -1004,7 +1004,7 @@ If you generate the WASM without `-s STANDALONE_WASM` then the stack manipulatio
 
 If we leave the `print()` function undefined in `person.c`:
 
-```c
+```c++
 void printy(Person *person);
 
 int main() {
@@ -1112,7 +1112,7 @@ Exception in thread "main" Program exited with status code 0.
 
 That's because we are running a `main` entry point which has a call to `proc_exit()` (although older versions of `emcc` do not behave this way - probably they fixed a bug). We can re-arrange the WASM to just print and not exit:
 
-```c
+```c++
 #include <stdio.h>
 void hello() {
   printf("hello, world!\n");
@@ -1146,7 +1146,7 @@ $10 ==> wasm-void-result
 
 So now we know how to call a void function in a WASM from Java. What about pushing data in and out? We can add a function that returns a string:
 
-```c
+```c++
 char* msg() {
   return "hello, world!\n";
 }
@@ -1203,6 +1203,13 @@ $ jshell --class-path $HOME/.m2/repository/io/github/kawamuray/wasmtime/wasmtime
 |  For an introduction type: /help intro
 ```
 
+First compile the WASM:
+
+```
+$ cd wasmtime
+$ emcc -Os -s STANDALONE_WASM ../hello.c -o hello.wasm
+```
+
 then
 
 ```java
@@ -1219,6 +1226,12 @@ jshell> func.call(store)
 ```
 
 There's no output on stdout, just a `TrapException` when `proc_exit()` is called. Not sure what that means because it works if you run the app from the `java` command line (or use `mvn spring-boot:run`). If you use the version of `hello.wasm` without the main function:
+
+```
+$ emcc -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_hello', '_msg']" -Wl,--no-entry hello.c -o hello.wasm
+```
+
+then
 
 ```java
 jshell> linker.get(store, "", "hello").get().func().call(store)
@@ -1502,4 +1515,124 @@ Starting...
 Exited with i32 exit status 0
 wasm backtrace:
     0: 0x178e - <unknown>!<wasm function 22>
+```
+
+## cJSON
+
+There is a lightweight JSON parser in C at [cJSON](https://github.com/DaveGamble/cJSON). You can compile it to a wasm:
+
+```
+$ funcs="'_"$(grep CJSON_PUBLIC external/cJSON.h | sed -e 's/.* \(cJSON_.*\)(.*/\1/' | egrep -v '#' | tr '\n' "%" | sed -e "s/%/', '_/g" -e "s/, '_$//")
+$ emcc -Os -s EXPORTED_FUNCTIONS="[$funcs]" -Wl,--no-entry external/cJSON.c -o cJSON.wasm
+$ ls -l cJSON.wasm
+-rwxr-xr-x 1 dsyer dsyer 51445 Apr  7 16:08 cJSON.wasm
+```
+
+You can call the functions and f they return non-primitives they will be pointers. E.g.
+
+```javascript
+> var wasm = await WebAssembly.instantiate(fs.readFileSync('cJSON.wasm'));
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+> var versionPtr = wasm.instance.exports.cJSON_Version();
+> decoder.decode(wasm.instance.exports.memory.buffer.slice(versionPtr,versionPtr+5))
+'1.7.7'
+```
+
+Parse a JSON string (don't put it at address 0 because cJSON treats 0 as NULL and errors out):
+
+```
+> new Uint8Array(memory.buffer, 1, 40).set(encoder.encode('{"message":"hello world"}'))
+  var ptr = cJSON_Parse(1)
+> memory.buffer.slice(ptr, ptr+36)
+ArrayBuffer {
+  [Uint8Contents]: <00 00 00 00 00 00 00 00 28 0c 50 00 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00>,
+  byteLength: 36
+}
+```
+
+we can see that better in 32 bit chunks:
+
+```
+> new Uint32Array(memory.buffer, ptr, 9)
+Uint32Array(9) [ 0, 0, 5245992, 64, 0, 0, 0, 0, 0 ]
+```
+
+that's a `*cJSON`, which is defined like this:
+
+```c++
+typedef struct cJSON
+{
+    /* next/prev allow you to walk array/object chains. Alternatively, use GetArraySize/GetArrayItem/GetObjectItem */
+    struct cJSON *next;
+    struct cJSON *prev;
+    /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
+    struct cJSON *child;
+
+    /* The type of the item, as above. */
+    int type;
+
+    /* The item's string, if type==cJSON_String  and type == cJSON_Raw */
+    char *valuestring;
+    /* writing to valueint is DEPRECATED, use cJSON_SetNumberValue instead */
+    int valueint;
+    /* The item's number, if type==cJSON_Number */
+    double valuedouble;
+
+    /* The item's name string, if this item is the child of, or is in the list of subitems of an object. */
+    char *string;
+} cJSON;
+```
+
+so we can recognize the fields:
+
+```json
+{
+	prev: 0,
+	next: 0,
+	value: 5245992,
+	type: 64,
+	valuestring: 0,
+	valueint: 0,
+	valuedouble: 0,
+	string: 0
+}
+```
+
+Only 2 fields are relevant here:
+
+* `value` is a pointer to another `cJSON` 
+* `type` is "object" - `64 = 1<<6` and `#define cJSON_Object (1 << 6)` from `cJSON.h`
+
+The value is
+
+```javascript
+> new Uint32Array(memory.buffer, 5245992, 9)
+Uint32Array(9) [ 0, 0, 0, 16, 5246056, 0, 0, 0, 5246040 ]
+```
+
+which is
+
+```json
+{
+	prev: 0,
+	next: 0,
+	value: 0,
+	type: 16,
+	valuestring: 5246056,
+	valueint: 0,
+	valuedouble: 0,
+	string: 5246040
+}
+```
+
+* `type` is "string" (`#define cJSON_String (1 << 4)`)
+* `valuestring` is a pointer to a string: "hello world"
+* `string` is a pointer to the name of the field: "message"
+
+```javascript
+> decoder.decode(new Uint8Array(memory.buffer, 5246056, 11))
+'hello world'
+> decoder.decode(new Uint8Array(memory.buffer, 5246040, 7))
+'message'
 ```

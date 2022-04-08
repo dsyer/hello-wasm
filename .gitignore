@@ -6,6 +6,7 @@ tmp/
 .venv/
 
 *.wasm
+*.wat
 
 hello.html
 
@@ -13,7 +14,7 @@ bar.js
 hello.js
 randoms.js
 randoms.cjs
-
+pid.js
 time.js
 
 !wordle.wasm
