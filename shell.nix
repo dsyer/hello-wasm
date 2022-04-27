@@ -13,12 +13,14 @@ mkShell {
   postVenvCreation = ''
     unset SOURCE_DATE_EPOCH
     pip install wasmtime
+    pip install pyclibrary
   '';
 
   postShellHook = ''
     # allow pip to install wheels
     unset SOURCE_DATE_EPOCH
     mkdir -p ~/.emscripten
+    chmod +w -R ~/.emscripten
     cp -rf ${emscripten}/share/emscripten/cache ~/.emscripten
     export EM_CACHE=~/.emscripten/cache
     figlet ":wasm:"

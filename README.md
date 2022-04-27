@@ -1517,7 +1517,50 @@ wasm backtrace:
     0: 0x178e - <unknown>!<wasm function 22>
 ```
 
-<<<<<<< HEAD
+
+## Functions Returning Pointers
+
+WASM functions that return pointers are mainly only useful if you know the length of the data they refer to. You could make assumptions about null termination, but they would only work with strings, and not even then if the source language didn't have null-termination. So it's better to pack the length into a struct along with the data and return that. This is supported in WASM, e.g. here is a function that simply reflects the input
+
+```wat
+(module
+  (memory (export "memory") 2 3)
+  (func (export "reflect") (param i32) (param i32) (result i32) (result i32)
+    local.get 0
+    local.get 1)
+)
+```
+
+Multivalued parameters in C would be structs, and `emcc` supports that with "experimental" features. So a simple echo function with memory allocation for the result might look like this with parameters and returns passed by value:
+
+```c
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct _buffer {
+    size_t *data;
+    int len;
+} buffer;
+
+buffer echo(buffer input) {
+    size_t *output = malloc(input.len);
+    memcpy(output, input.data, input.len);
+    buffer result = {
+        output,
+        input.len
+    };
+    return result;
+}
+```
+
+It can be compiled to a WASM like this:
+
+```
+$ emcc -mmultivalue -Xclang -target-abi -Xclang experimental-mv -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_echo']" -Wl,--no-entry echo.c -o echo.wasm
+```
+
+If you call that function in the JVM you get back an array of `Val` of length 2 - the pointer and the length.
+
 ## cJSON
 
 There is a lightweight JSON parser in C at [cJSON](https://github.com/DaveGamble/cJSON). You can compile it to a wasm:
@@ -1637,47 +1680,3 @@ which is
 > decoder.decode(new Uint8Array(memory.buffer, 5246040, 7))
 'message'
 ```
-=======
-## Functions Returning Pointers
-
-WASM functions that return pointers are mainly only useful if you know the length of the data they refer to. You oculd make assumptions about null termination, but they would only work with strings, and not even then if the source language didn't have null-termination. So it's better if you can to pack the length into a struct along with the data and return that. This is supported in WASM, e.g. here is a function that simply reflects the input
-
-```wat
-(module
-  (memory (export "memory") 2 3)
-  (func (export "reflect") (param i32) (param i32) (result i32) (result i32)
-    local.get 0
-    local.get 1)
-)
-```
-
-Multivalued parameters in C would be structs, and `emcc` supports that with "experimental" features. So a simple echo function with memory allocation for the result might look like this with parameters and returns passed by value:
-
-```c
-#include <stdlib.h>
-#include <string.h>
-
-typedef struct _buffer {
-    size_t *data;
-    int len;
-} buffer;
-
-buffer echo(buffer input) {
-    size_t *output = malloc(input.len);
-    memcpy(output, input.data, input.len);
-    buffer result = {
-        output,
-        input.len
-    };
-    return result;
-}
-```
-
-It can be compiled to a WASM like this:
-
-```
-$ emcc -mmultivalue -Xclang -target-abi -Xclang experimental-mv -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_echo']" -Wl,--no-entry echo.c -o echo.wasm
-```
-
-If you call that function in the JVM you get back an array of `Val` of length 2 - the pointer and the length.
->>>>>>> 8d33dbc (Add notes on pointers to readme)
