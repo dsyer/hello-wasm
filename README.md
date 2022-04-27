@@ -1680,3 +1680,73 @@ which is
 > decoder.decode(new Uint8Array(memory.buffer, 5246040, 7))
 'message'
 ```
+
+## MessagePack
+
+[MessagePack](https://msgpack.org/) is a generic binary encoding with broad polyglot support. It's like JSON, but binary. In C you can read and write buffers with [`mpack.c`](https://github.com/ludocode/mpack), and in JavaScript there is [`@msgpack/msgpack`](https://www.npmjs.com/package/@msgpack/msgpack). So with this function in `message.c` we can extract a "message" and transfer its value to "msg":
+
+```C
+#include "external/mpack.h"
+
+typedef struct _buffer {
+    char *data;
+    size_t len;
+} buffer;
+
+buffer *xform(char *input, size_t len)
+{
+	mpack_tree_t tree;
+	mpack_tree_init_data(&tree, input, len);
+	mpack_tree_parse(&tree);
+	mpack_node_t root = mpack_tree_root(&tree);
+
+	mpack_writer_t writer;
+	buffer *result = malloc(sizeof(buffer));
+	mpack_writer_init_growable(&writer, &result->data, &result->len);
+	mpack_build_map(&writer);
+	mpack_write_cstr(&writer, "msg");
+	mpack_write_cstr(&writer, mpack_node_str(mpack_node_map_cstr(root, "message")));
+	mpack_complete_map(&writer);
+	mpack_writer_destroy(&writer);
+
+	return result;
+}
+```
+
+Compile it:
+
+```
+$ emcc -Os -s EXPORTED_FUNCTIONS="[_xform]" -Wl,--no-entry message.c external/mpack.c -o message.wasm
+```
+
+Then in Node.js:
+
+```javascript
+> var msgpack = await import('@msgpack/msgpack')
+  var wasm = await WebAssembly.instantiate(fs.readFileSync('message.wasm'))
+  var msg = msgpack.encode({message: "Hello World"})
+  new Uint8Array(wasm.instance.exports.memory.buffer, 1, msg.length).set(msg)
+> var result = wasm.instance.exports.xform(1,msg.length)
+> new Uint32Array(wasm.instance.exports.memory.buffer, result, 2)
+Uint32Array(2) [ 5248552, 17 ]
+```
+
+The result is a pointer to the output buffer and its length:
+
+```javascript
+> wasm.instance.exports.memory.buffer.slice(5248552, 5248552+17)
+ArrayBuffer {
+  [Uint8Contents]: <81 a3 6d 73 67 ab 48 65 6c 6c 6f 20 57 6f 72 6c 64>,
+  byteLength: 17
+}
+```
+
+We can read that according to the spec as
+
+* 81: a map with one element
+* a3: string key of length 3
+* 6d 73 67: "msg"
+* ab: string value of length 11
+* 65 6c 6c 6f 20 57 6f 72 6c 64: "Hello World"
+
+> NOTE: The multivalue WASM support [fails to compile `mpack.c`](https://github.com/llvm/llvm-project/issues/55136) so we had to use a pointer instead of a value for the return buffer.

@@ -16,6 +16,7 @@ randoms.js
 randoms.cjs
 pid.js
 time.js
+mpack.*
 
 !wordle.wasm
 !month*

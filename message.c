@@ -1,5 +1,10 @@
 #include "external/mpack.h"
 
+typedef struct _buffer {
+    char *data;
+    size_t len;
+} buffer;
+
 /**
 > var msgpack = await import('@msgpack/msgpack')
   var wasm = await WebAssembly.instantiate(fs.readFileSync('message.wasm'))
@@ -16,27 +21,22 @@ size_t datalen(char *input, size_t len) {
 	return mpack_node_data_len(mpack_node_map_cstr(root, "msg"));
 }
 
-char *xform(char *input, size_t len)
+buffer *xform(char *input, size_t len)
 {
 	mpack_tree_t tree;
 	mpack_tree_init_data(&tree, input, len);
 	mpack_tree_parse(&tree);
 	mpack_node_t root = mpack_tree_root(&tree);
 
-	size_t msglen = mpack_node_data_len(mpack_node_map_cstr(root, "message"));
-	char *message = malloc(msglen) + 1;
-	mpack_node_copy_cstr(mpack_node_map_cstr(root, "message"), message, msglen + 1);
-
 	mpack_writer_t writer;
-	char *result;
-	size_t *datalen;
-	mpack_writer_init_growable(&writer, &result, datalen);
+	buffer *result = malloc(sizeof(buffer));
+	mpack_writer_init_growable(&writer, &result->data, &result->len);
 	mpack_build_map(&writer);
 	mpack_write_cstr(&writer, "msg");
-	mpack_write_cstr(&writer, message);
+	mpack_write_cstr(&writer, mpack_node_str(mpack_node_map_cstr(root, "message")));
 	mpack_complete_map(&writer);
 	mpack_writer_destroy(&writer);
-	free(message);
+
 	return result;
 }
 
