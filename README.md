@@ -350,6 +350,47 @@ Uint8Array(6) [ 72, 101, 108, 108, 111, 32 ]
 
 The location of the global data in the binary is not mandated by the spec, as far as I can tell. It seems to be set to 1024 by default in emscripten.
 
+## Virtual Function Dispatch
+
+A virtual function can be described using a "table" in the WASM. The example in `dispatch.wat` exports a function "dispatch" that simply calls one of the 3 functions in the table. The table is declared to have 4 elements:
+
+```
+(table (;0;) 4 4 funcref)
+```
+
+and is initialized so that it can point to functions 0-2 (starting at offset 1):
+
+```
+(elem (;0;) (i32.const 1) func 0 1 2)
+```
+
+The exported function is defined like this - it says "take the input parameter and call the function (of type 0) with that offset":
+
+```
+(func (;3;) (type 1) (param i32) (result i32)
+  local.get 0
+  call_indirect (type 0)
+)
+```
+
+I.e. `dispatch(n)` calls function `n-1`. You can compile it:
+
+```
+$ wat2wasm test.wat > test.wasm
+```
+
+and see it running:
+
+```javascript
+> const wasm = await WebAssembly.instantiate(fs.readFileSync('./test.wasm'));
+> wasm.instance.exports.dispatch(3)
+1
+> wasm.instance.exports.dispatch(2)
+2
+> wasm.instance.exports.dispatch(1)
+3
+```
+
 ## Arrays of Data Structures
 
 What would an array of strings need to look like in Javascript so that a WASM would understand it? Let's set up a static array in C and export it via a function:
