@@ -1,5 +1,4 @@
 {
-	"type": "module",
 	"dependencies": {
 		"@msgpack/msgpack": "^2.7.2",
 		"google-protobuf": "^3.19.3"
