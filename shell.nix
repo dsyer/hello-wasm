@@ -6,7 +6,7 @@ mkShell {
   buildInputs = [
     python3Packages.python
     python3Packages.venvShellHook
-    figlet emscripten nodejs cmake check protobuf protobufc pkg-config wasmtime wabt
+    figlet emscripten nodejs cmake check protobuf protobufc pkg-config wasmtime wabt openjdk
   ];
 
   venvDir = "./.venv";
